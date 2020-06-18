@@ -26,6 +26,7 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 
 import net.sourceforge.argparse4j.ArgumentParsers;
+import net.sourceforge.argparse4j.impl.Arguments;
 import net.sourceforge.argparse4j.inf.ArgumentParser;
 import net.sourceforge.argparse4j.inf.ArgumentParserException;
 import net.sourceforge.argparse4j.inf.Namespace;
@@ -39,11 +40,14 @@ public class Main {
         ArgumentParser parser = ArgumentParsers.newArgumentParser("cryo");
         parser.addArgument("-r", "--repository").nargs(1).required(true)
                 .help("Full patht o local clone of remote repository");
-        //parser.addArgument("-s", "--stream").nargs(1).required(true).help("Name of the stream to examine, ie '7.2.z'");
+        parser.addArgument("-d", "--dry-run").action(Arguments.storeTrue()).required(false)
+        .help("If present no changes will be pushed to remote repo, only local one will contain. Good for validation.");
+
         try {
             Namespace ns = parser.parseArgs(args);
-            final File directory = new File(ns.getString("repository"));
-            final Cryo freezerProgram = new Cryo(directory);
+            final File directory = new File(ns.getString("repository").replace("[", "").replace("]", ""));
+
+            final Cryo freezerProgram = new Cryo(directory,ns.getBoolean("dry_run"));
             freezerProgram.createStorage();
         } catch (ArgumentParserException e) {
             parser.handleError(e);

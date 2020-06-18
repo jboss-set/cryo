@@ -54,7 +54,7 @@ import org.jboss.set.cryo.process.ProcessResult;
 public class Cryo {
 
     // TODO: check jgit in v2(though it does not have bisect it seems)
-    public static final String[] COMMAND_GIT_GET_URL = new String[] { "git", "remote", "get-url", "origin" };
+    public static final String[] COMMAND_GIT_GET_URL = new String[] {"git", "remote", "get-url", "origin" };
 
     public static final String[] COMMAND_GIT_GET_CURRENT_BRANCH = new String[] { "git", "rev-parse", "--abbrev-ref", "HEAD" };
 
@@ -84,7 +84,15 @@ public class Cryo {
     public static final String[] COMMAND_GIT_RESET_TO = new String[] { "git", "reset", "--hard" };
 
     public static String[] COMMAND_GIT_RESET_TO_PREVIOUS(final String commitHash) {
-        return new String[] { "merge.sh", "origin", commitHash + "^" };
+        final String[] cmd = Arrays.copyOf(COMMAND_GIT_RESET_TO, COMMAND_GIT_RESET_TO.length + 1);
+        cmd[cmd.length - 1] = commitHash + "^";
+        return cmd;
+    }
+
+    public static String[] COMMAND_GIT_RESET_TO_POINT(final String commitHash) {
+        final String[] cmd = Arrays.copyOf(COMMAND_GIT_RESET_TO, COMMAND_GIT_RESET_TO.length + 1);
+        cmd[cmd.length - 1] = commitHash;
+        return cmd;
     }
 
     public static String[] COMMAND_MERGE_PR(final String prNumber) {
@@ -144,8 +152,10 @@ public class Cryo {
     // TODO: redo with more sophisticated state machine
     protected boolean weDone = false;
 
-    public Cryo(File directory) {
+    protected boolean dryRun = true;
+    public Cryo(final File directory, final boolean dryRun) {
         this.repositoryLocation = directory;
+        this.dryRun = dryRun;
     }
 
     /**
@@ -176,13 +186,13 @@ public class Cryo {
     }
 
     protected boolean determineRepositoryURL() {
-        // final ProcessBuilder readRepoURL = new ProcessBuilder("git", "remote", "get-url", "origin");
+        //final ProcessBuilder readRepoURL = new ProcessBuilder("git", "remote", "get-url", "origin");
         final ProcessBuilder readRepoURL = new ProcessBuilder(COMMAND_GIT_GET_URL);
         readRepoURL.directory(repositoryLocation);
         final ProcessResult result = new ExecuteProcess(readRepoURL).getProcessResult();
         switch (result.getOutcome()) {
             case SUCCESS:
-                Main.log(Level.INFO, "[SUCCESS] Repository URL: %s", result.getOutput());
+                Main.log(Level.INFO, "[SUCCESS] Repository URL: {0}", result.getOutput());
                 try {
                     this.repositoryURL = new URL(result.getOutput());
                 } catch (MalformedURLException e) {
@@ -204,7 +214,7 @@ public class Cryo {
         final ProcessResult result = new ExecuteProcess(readCurrentBranch).getProcessResult();
         switch (result.getOutcome()) {
             case SUCCESS:
-                Main.log(Level.INFO, "[SUCCESS] Repository branch: %s", result.getOutput());
+                Main.log(Level.INFO, "[SUCCESS] Repository branch: {0}", result.getOutput());
                 this.branch = result.getOutput();
                 return true;
             case FAILURE:
@@ -227,13 +237,7 @@ public class Cryo {
         final ProcessResult result = new ExecuteProcess(cleanRepository).getProcessResult();
         switch (result.getOutcome()) {
             case SUCCESS:
-                Main.log(Level.INFO, "Cleanup of repository: %s", result.getOutput());
-                try {
-                    this.repositoryURL = new URL(result.getOutput());
-                } catch (MalformedURLException e) {
-                    Main.log(Level.SEVERE, "Failed to clean up repository!", e);
-                    return false;
-                }
+                Main.log(Level.INFO, "Cleanup of repository: {0}", result.getOutput());
                 return true;
             case FAILURE:
             default:
@@ -248,7 +252,7 @@ public class Cryo {
         final ProcessResult result = new ExecuteProcess(buildRepository).getProcessResult();
         switch (result.getOutcome()) {
             case SUCCESS:
-                Main.log(Level.INFO, "[SUCCESS] Build and test: %s", result.getOutput());
+                Main.log(Level.INFO, "[SUCCESS] Build and test: {0}", result.getOutput());
                 return true;
             case FAILURE:
             default:
@@ -271,7 +275,7 @@ public class Cryo {
             simpleContainer.register(PullRequestHome.class.getSimpleName(), GithubPullRequestHomeService);
             return true;
         } catch (AphroditeException e) {
-            Main.log(Level.SEVERE, "Failed to initialize aphrodite!", e);
+            Main.log("Failed to initialize aphrodite!", e);
         }
         return false;
     }
@@ -295,7 +299,7 @@ public class Cryo {
             }
             return true;
         } catch (NotFoundException e) {
-            Main.log(Level.SEVERE, "Failed to fetch repository '%s' due to '%s'", new Object[] { this.repositoryURL, e });
+            Main.log(Level.SEVERE, "Failed to fetch repository '"+this.repositoryURL+"' due to:", e);
         }
         return false;
         // try {
@@ -336,6 +340,7 @@ public class Cryo {
     protected void createStorage() {
         if (!init()) {
             Main.log(Level.WARNING, "Failed to initialize, check previous errors.");
+            return;
         }
         if (!setUpFutureBranch()) {
             return;
@@ -368,27 +373,13 @@ public class Cryo {
      * @return
      */
     protected boolean setUpFutureBranch() {
-        // String branchName = null;
-        // final ProcessBuilder readCurrentBranch = new ProcessBuilder(COMMAND_GIT_GET_CURRENT_BRANCH);
-        // readCurrentBranch.directory(repositoryLocation);
-        // ProcessResult result = new ExecuteProcess(readCurrentBranch).getProcessResult();
-        // switch (result.getOutcome()) {
-        // case SUCCESS:
-        // Main.log(Level.INFO, "[SUCCESS] Current branch name: %s", result.getOutput());
-        // branchName = result.getOutput()+".future";
-        // break;
-        // case FAILURE:
-        // default:
-        // result.reportError();
-        // return false;
-        // }
         this.futureBranch = this.branch + ".future";
         final ProcessBuilder checkoutNewBranch = new ProcessBuilder(COMMAND_GIT_CHECKOUT_NEW_BRANCH(this.futureBranch));
         checkoutNewBranch.directory(repositoryLocation);
         final ProcessResult result = new ExecuteProcess(checkoutNewBranch).getProcessResult();
         switch (result.getOutcome()) {
             case SUCCESS:
-                Main.log(Level.INFO, "[SUCCESS] Created branch: %s", result.getOutput());
+                Main.log(Level.INFO, "[SUCCESS] Created branch: {0}", result.getOutput());
                 break;
             case FAILURE:
             default:
@@ -425,7 +416,7 @@ public class Cryo {
 
     /**
      * This method will perform PER PR bisect. Once it is done it will revert changes to point where TS pass, it will mark bad
-     * PR as unmergable, revert state of previous PRs to pristine, so they can be mered. Once this method return,
+     * PR as unmergable, revert state of previous PRs to pristine, so they can be merged in next batch.
      *
      * @param mergeResult
      * @return
@@ -442,7 +433,7 @@ public class Cryo {
         int firstBad = -1;
         while (L <= R) {
             int M = (L + R) / 2;
-            setMergeStage(danceFloor, M);
+            adjustMergeRange(danceFloor, M);
             if (runTestSuite()) {
                 // passed
                 L = M + 1;
@@ -455,7 +446,9 @@ public class Cryo {
         }
         // retain only good PRs, rest will follow in another batch of merge.
         // NOTE: check if this is correct
-        danceFloor[firstBad].reverse();
+        //TODO: do we need to check on this reverse?
+        if(!danceFloor[firstBad].reverse())
+            throw new RuntimeException();
         danceFloor[firstBad].markFailed();
         for (int i = 0; i < firstBad; i++) {
             danceFloor[i].markGood();
@@ -470,7 +463,7 @@ public class Cryo {
      * @param target
      * @param point - index of last merged PR.
      */
-    private void setMergeStage(BisectablePullRequest[] target, int point) {
+    private void adjustMergeRange(BisectablePullRequest[] target, int point) {
         // TODO: handle merge/reverse failures properly.
         // TODO: check state - is it needed? We should have clean slate here
         int currentMergePoint = target.length - 1;
@@ -482,103 +475,37 @@ public class Cryo {
         if (currentMergePoint > point) {
             // rewind, right to left.
             for (; currentMergePoint > point; currentMergePoint--) {
-                target[currentMergePoint].reverse();
+              //TODO: is boom enough?
+                if(!target[currentMergePoint].reverse())
+                    throw new RuntimeException();
             }
         } else {
             // merge, left to right
             for (; currentMergePoint <= point; currentMergePoint++) {
-                target[currentMergePoint].merge();
+                //TODO: is boom enough?
+                if(!target[currentMergePoint].merge())
+                    throw new RuntimeException();
             }
         }
     }
-    // protected String readCurrentCommit() {
-    // final ProcessBuilder readCurrentCommitHead = new ProcessBuilder(COMMAND_GIT_READ_CURRENT_COMMIT_HEAD);
-    // readCurrentCommitHead.directory(repositoryLocation);
-    // ProcessResult result = new ExecuteProcess(readCurrentCommitHead).getProcessResult();
-    // switch (result.getOutcome()) {
-    // case SUCCESS:
-    // Main.log(Level.INFO, "[BISECT] [SUCCESS] Read current commit HEAD: %s", result.getOutput());
-    // return result.getOutput();
-    // case FAILURE:
-    // default:
-    // Main.log(Level.INFO, "[BISECT] [FAILURE] Read current commit HEAD");
-    // result.reportError();
-    // return null;
-    // }
-    // }
-    //
-    // protected String readPreviousCommit(BisectablePullRequest bisectablePullRequest) {
-    // //TODO: fill this once aphro has it
-    // final String firstCommit = null;
-    // final ProcessBuilder readPreviousCommit = new ProcessBuilder(COMMAND_GIT_READ_PREVIOUS_COMMIT_TO(firstCommit));
-    // readPreviousCommit.directory(repositoryLocation);
-    // final ProcessResult result = new ExecuteProcess(readPreviousCommit).getProcessResult();
-    // switch (result.getOutcome()) {
-    // case SUCCESS:
-    // Main.log(Level.INFO, "[BISECT] [SUCCESS] Read past commit: %s", result.getOutput());
-    // return result.getOutput();
-    // case FAILURE:
-    // default:
-    // Main.log(Level.INFO, "[BISECT] [FAILURE] Read past commit");
-    // result.reportError();
-    // return null;
-    // }
-    // }
-    //
-    // private boolean setupBisect(String good, String bad) {
-    // final ProcessBuilder startBisect = new ProcessBuilder(COMMAND_GIT_BISECT_START);
-    // startBisect.directory(repositoryLocation);
-    // ProcessResult result = new ExecuteProcess(startBisect).getProcessResult();
-    // switch (result.getOutcome()) {
-    // case SUCCESS:
-    // Main.log(Level.FINE, "[BISECT] [SUCCESS] Start bisect: %s", result.getOutput());
-    // break;
-    // case FAILURE:
-    // default:
-    // Main.log(Level.INFO, "[BISECT] [FAILURE] Start bisect");
-    // result.reportError();
-    // return false;
-    // }
-    //
-    // final ProcessBuilder bisectGood = new ProcessBuilder(COMMAND_GIT_BISECT_GOOD(good));
-    // bisectGood.directory(repositoryLocation);
-    // result = new ExecuteProcess(bisectGood).getProcessResult();
-    // switch (result.getOutcome()) {
-    // case SUCCESS:
-    // Main.log(Level.FINE, "[BISECT] [SUCCESS] Bisect good: %s", result.getOutput());
-    // break;
-    // case FAILURE:
-    // default:
-    // Main.log(Level.INFO, "[BISECT] [FAILURE] Bisect good");
-    // result.reportError();
-    // return false;
-    // }
-    //
-    // final ProcessBuilder bisectBad = new ProcessBuilder(COMMAND_GIT_BISECT_BAD(bad));
-    // bisectBad.directory(repositoryLocation);
-    // result = new ExecuteProcess(bisectBad).getProcessResult();
-    // switch (result.getOutcome()) {
-    // case SUCCESS:
-    // Main.log(Level.FINE, "[BISECT] [SUCCESS] Bisect bad: %s", result.getOutput());
-    // break;
-    // case FAILURE:
-    // default:
-    // Main.log(Level.INFO, "[BISECT] [FAILURE] Bisect bad");
-    // result.reportError();
-    // return false;
-    // }
-    // return true;
-    // }
 
     protected void pushFutureBranch() {
-        // TODO: REPORT?
+        Main.log(Level.INFO, "[SUCCESS] Finished preparing future branch {0}, report:",this.futureBranch);
+        //TODO: update when deps are in.
+        for(BisectablePullRequest bisectablePullRequest:this.coldStorage) {
+            Main.log(Level.INFO, "Pull Request Status[{0}]  URL:[{1}] Desc:[{2}]", new Object[] {bisectablePullRequest.getState(),bisectablePullRequest.getPullRequest().getURL(),bisectablePullRequest.getPullRequest().getTitle()});
+        }
+        if(this.dryRun) {
+            Main.log(Level.INFO, "[SUCCESS] Dry run complete, remote repository remain unchanged.");
+            return;
+        }
         if (getGoodPullRequestCount() != 0) {
             final ProcessBuilder pushBranch = new ProcessBuilder(COMMAND_GIT_PUSH(this.futureBranch));
             pushBranch.directory(repositoryLocation);
             final ProcessResult result = new ExecuteProcess(pushBranch).getProcessResult();
             switch (result.getOutcome()) {
                 case SUCCESS:
-                    Main.log(Level.FINE, "[BISECT] [SUCCESS] Push future branch: %s", result.getOutput());
+                    Main.log(Level.FINE, "[BISECT] [SUCCESS] Push future branch: {0}", result.getOutput());
                     break;
                 case FAILURE:
                 default:

@@ -23,7 +23,7 @@ public class BisectablePullRequest {
     //hold merge id in order to unmerge if needs be.
     protected String mergeCommitID;
 
-    //TODO: remove this
+    //TODO: possibly remove this
     protected File repositoryLocation;
     public BisectablePullRequest(final File repositoryLocation, final PullRequest pullRequest) {
         super();
@@ -50,16 +50,16 @@ public class BisectablePullRequest {
      */
     public boolean merge() {
         if(state != CryoPRState.PRISTINE) {
-            //TODO: make it better
-            throw new RuntimeException();
+            //NOTE: should this throw?
+            return false;
         }
-        //NOTE: there might be case when PR has more than one commit, one in the middle fails, how to handle that ?
+
         final ProcessBuilder mergePullRequest = new ProcessBuilder(Cryo.COMMAND_MERGE_PR(getId()));
         mergePullRequest.directory(repositoryLocation);
         final ProcessResult result = new ExecuteProcess(mergePullRequest).getProcessResult();
         switch (result.getOutcome()) {
             case SUCCESS:
-                Main.log(Level.INFO, "[SUCCESS] Merge of: %s", getId());
+                Main.log(Level.INFO, "[SUCCESS] Merge of: {0}", getId());
                 this.state = CryoPRState.MERGED;
                 final ProcessResult read = this.readMergeCommitHash();
                 switch(read.getOutcome()) {
@@ -69,12 +69,16 @@ public class BisectablePullRequest {
                     case FAILURE:
                     default:
                         read.reportError();
-                        break;
+                        //TODO: make it gracious.
+                        throw new RuntimeException();
                 }
                 return true;
             case FAILURE:
-                //TODO: failure processing here - either nightmare or just blow up...
-                // #markFailed()
+                this.state = CryoPRState.NO_MERGE;
+                if(!reverse()) {
+                    //TODO: make it better
+                    throw new RuntimeException();
+                }
             default:
                 result.reportError();
                 return false;
@@ -82,18 +86,42 @@ public class BisectablePullRequest {
     }
 
     public boolean reverse() {
-        final ProcessBuilder readRepoURL = new ProcessBuilder(Cryo.COMMAND_GIT_RESET_TO_PREVIOUS(mergeCommitID));
-        readRepoURL.directory(repositoryLocation);
-        final ProcessResult result = new ExecuteProcess(readRepoURL).getProcessResult();
-        switch (result.getOutcome()) {
-            case SUCCESS:
-                Main.log(Level.INFO, "[SUCCESS] Revert pull request: %s", getId());
-                return true;
-            case FAILURE:
-            default:
-                result.reportError();
-                return false;
+        if (state == CryoPRState.NO_MERGE) {
+            //NOTE: in case of merge failure repo is in limbo state. Current commit is old head, no new PRs in index are present
+            //so reset to HEAD is enough
+            final ProcessBuilder readRepoURL = new ProcessBuilder(Cryo.COMMAND_GIT_RESET_TO_POINT("HEAD"));
+            readRepoURL.directory(repositoryLocation);
+            final ProcessResult result = new ExecuteProcess(readRepoURL).getProcessResult();
+            switch (result.getOutcome()) {
+                case SUCCESS:
+                    Main.log(Level.INFO, "[SUCCESS] Revert pull request after failure: {0}", getId());
+                    return true;
+                case FAILURE:
+                default:
+                    // NOTE: is this even possible?
+                    result.reportError();
+                    return false;
+            }
+        } else if(state == CryoPRState.MERGED){
+            final ProcessBuilder readRepoURL = new ProcessBuilder(Cryo.COMMAND_GIT_RESET_TO_PREVIOUS(mergeCommitID));
+            readRepoURL.directory(repositoryLocation);
+            final ProcessResult result = new ExecuteProcess(readRepoURL).getProcessResult();
+            switch (result.getOutcome()) {
+                case SUCCESS:
+                    Main.log(Level.INFO, "[SUCCESS] Revert pull request: {0}", getId());
+                    mergeCommitID = null;
+                    this.state = CryoPRState.PRISTINE;
+                    return true;
+                case FAILURE:
+                default:
+                    // NOTE: is this even possible?
+                    mergeCommitID = null;
+                    this.state = CryoPRState.CORRUPTED;
+                    result.reportError();
+                    return false;
+            }
         }
+        return true;
     }
 
     protected ProcessResult readMergeCommitHash() {
