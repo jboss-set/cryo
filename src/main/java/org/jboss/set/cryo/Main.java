@@ -32,8 +32,17 @@ import net.sourceforge.argparse4j.inf.ArgumentParserException;
 import net.sourceforge.argparse4j.inf.Namespace;
 
 public class Main {
-    private static final Logger LOGGER = Logger.getLogger(Main.class.getPackage().getName());
-
+    private static Logger LOGGER = Logger.getLogger(Main.class.getPackage().getName());
+//    static {
+//        try {
+//            //TODO fix this or run with: -Djava.util.logging.SimpleFormatter.format='%1$tY-%1$tm-%1$td %1$tH:%1$tM:%1$tS %4$s %2$s %5$s%6$s%n'
+//            //LogManager.getLogManager().readConfiguration(Main.class.getClassLoader().getResourceAsStream("logging.properties"));
+//            LOGGER = Logger.getLogger(Main.class.getPackage().getName());
+//        } catch (SecurityException | IOException e) {
+//            // TODO Auto-generated catch block
+//            e.printStackTrace();
+//        }
+//    }
     public static void main(String[] args) throws Exception {
 
           // NOTE: does not seem we need args? branchName, URL etc can be retrieved from repo.
@@ -42,12 +51,13 @@ public class Main {
                 .help("Full patht o local clone of remote repository");
         parser.addArgument("-d", "--dry-run").action(Arguments.storeTrue()).required(false)
         .help("If present no changes will be pushed to remote repo, only local one will contain. Good for validation.");
-
+        parser.addArgument("-i", "--invert").action(Arguments.storeTrue()).required(false)
+        .help("Invert order of PRs. By default aphrodite/github return new PRs first.");
         try {
             Namespace ns = parser.parseArgs(args);
             final File directory = new File(ns.getString("repository").replace("[", "").replace("]", ""));
 
-            final Cryo freezerProgram = new Cryo(directory,ns.getBoolean("dry_run"));
+            final Cryo freezerProgram = new Cryo(directory,ns.getBoolean("dry_run"), ns.getBoolean("invert"));
             freezerProgram.createStorage();
         } catch (ArgumentParserException e) {
             parser.handleError(e);

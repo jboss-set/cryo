@@ -26,6 +26,7 @@ import java.net.MalformedURLException;
 import java.net.URL;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.logging.Level;
 
@@ -80,6 +81,10 @@ public class Cryo {
             "-fae", "-DallTests" };
 
     public static final String[] COMMAND_GIT_PUSH = new String[] { "git", "push", "origin" };
+
+    //public static final String[] COMMAND_GIT_MERGE_ABORT = new String[] { "git", "merge", "--abort" };
+
+    public static final String[] COMMAND_GIT_MERGE_ABORT = new String[] { "git", "reset", "--merge" };
 
     public static final String[] COMMAND_GIT_RESET_TO = new String[] { "git", "reset", "--hard" };
 
@@ -148,14 +153,15 @@ public class Cryo {
 
     protected Aphrodite aphrodite;
     protected List<BisectablePullRequest> coldStorage;
-
+    protected boolean dryRun = true;
+    protected boolean invert = true;
     // TODO: redo with more sophisticated state machine
     protected boolean weDone = false;
 
-    protected boolean dryRun = true;
-    public Cryo(final File directory, final boolean dryRun) {
+    public Cryo(final File directory, final boolean dryRun, final boolean invert) {
         this.repositoryLocation = directory;
         this.dryRun = dryRun;
+        this.invert = invert;
     }
 
     /**
@@ -181,6 +187,8 @@ public class Cryo {
 
         if (!fetchPRList()) {
             return false;
+        } else {
+            reportCurrentStateOfColdStorage();
         }
         return true;
     }
@@ -297,6 +305,9 @@ public class Cryo {
                     this.coldStorage.add(bisectablePullRequest);
                 }
             }
+            if(this.invert) {
+                Collections.reverse(this.coldStorage);
+            }
             return true;
         } catch (NotFoundException e) {
             Main.log(Level.SEVERE, "Failed to fetch repository '"+this.repositoryURL+"' due to:", e);
@@ -379,7 +390,7 @@ public class Cryo {
         final ProcessResult result = new ExecuteProcess(checkoutNewBranch).getProcessResult();
         switch (result.getOutcome()) {
             case SUCCESS:
-                Main.log(Level.INFO, "[SUCCESS] Created branch: {0}", result.getOutput());
+                Main.log(Level.INFO, "[SUCCESS] Created branch: {0}", this.futureBranch);
                 break;
             case FAILURE:
             default:
@@ -481,6 +492,9 @@ public class Cryo {
             }
         } else {
             // merge, left to right
+            //need to adjust, since above we looked for last merge
+            //here we aim a bit higher
+            currentMergePoint++;
             for (; currentMergePoint <= point; currentMergePoint++) {
                 //TODO: is boom enough?
                 if(!target[currentMergePoint].merge())
@@ -492,11 +506,9 @@ public class Cryo {
     protected void pushFutureBranch() {
         Main.log(Level.INFO, "[SUCCESS] Finished preparing future branch {0}, report:",this.futureBranch);
         //TODO: update when deps are in.
-        for(BisectablePullRequest bisectablePullRequest:this.coldStorage) {
-            Main.log(Level.INFO, "Pull Request Status[{0}]  URL:[{1}] Desc:[{2}]", new Object[] {bisectablePullRequest.getState(),bisectablePullRequest.getPullRequest().getURL(),bisectablePullRequest.getPullRequest().getTitle()});
-        }
+        reportCurrentStateOfColdStorage();
         if(this.dryRun) {
-            Main.log(Level.INFO, "[SUCCESS] Dry run complete, remote repository remain unchanged.");
+            Main.log(Level.INFO, "[SUCCESS] Dry run complete, remote repository remain unchanged. Local repository can be pushed manually!");
             return;
         }
         if (getGoodPullRequestCount() != 0) {
@@ -512,6 +524,15 @@ public class Cryo {
                     Main.log(Level.INFO, "[BISECT] [FAILURE] Push future branch");
                     result.reportError();
             }
+        }
+    }
+
+    protected void reportCurrentStateOfColdStorage() {
+        for (BisectablePullRequest bisectablePullRequest : this.coldStorage) {
+            Main.log(Level.INFO, "Pull Request:[{0}] Status[{1}] Desc:[{2}]",
+                    new Object[] { bisectablePullRequest.getPullRequest().getURL(),
+                            bisectablePullRequest.getState(),
+                            bisectablePullRequest.getPullRequest().getTitle() });
         }
     }
 

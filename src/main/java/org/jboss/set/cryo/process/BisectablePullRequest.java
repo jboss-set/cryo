@@ -89,9 +89,10 @@ public class BisectablePullRequest {
         if (state == CryoPRState.NO_MERGE) {
             //NOTE: in case of merge failure repo is in limbo state. Current commit is old head, no new PRs in index are present
             //so reset to HEAD is enough
-            final ProcessBuilder readRepoURL = new ProcessBuilder(Cryo.COMMAND_GIT_RESET_TO_POINT("HEAD"));
-            readRepoURL.directory(repositoryLocation);
-            final ProcessResult result = new ExecuteProcess(readRepoURL).getProcessResult();
+            //final ProcessBuilder readRepoURL = new ProcessBuilder(Cryo.COMMAND_GIT_RESET_TO_POINT("HEAD"));
+            final ProcessBuilder mergeAbort = new ProcessBuilder(Cryo.COMMAND_GIT_MERGE_ABORT);
+            mergeAbort.directory(repositoryLocation);
+            final ProcessResult result = new ExecuteProcess(mergeAbort).getProcessResult();
             switch (result.getOutcome()) {
                 case SUCCESS:
                     Main.log(Level.INFO, "[SUCCESS] Revert pull request after failure: {0}", getId());
@@ -103,9 +104,9 @@ public class BisectablePullRequest {
                     return false;
             }
         } else if(state == CryoPRState.MERGED){
-            final ProcessBuilder readRepoURL = new ProcessBuilder(Cryo.COMMAND_GIT_RESET_TO_PREVIOUS(mergeCommitID));
-            readRepoURL.directory(repositoryLocation);
-            final ProcessResult result = new ExecuteProcess(readRepoURL).getProcessResult();
+            final ProcessBuilder mergeRevert = new ProcessBuilder(Cryo.COMMAND_GIT_RESET_TO_PREVIOUS(mergeCommitID));
+            mergeRevert.directory(repositoryLocation);
+            final ProcessResult result = new ExecuteProcess(mergeRevert).getProcessResult();
             switch (result.getOutcome()) {
                 case SUCCESS:
                     Main.log(Level.INFO, "[SUCCESS] Revert pull request: {0}", getId());
