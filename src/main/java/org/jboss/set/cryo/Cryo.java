@@ -25,9 +25,9 @@ import java.io.File;
 import java.net.MalformedURLException;
 import java.net.URL;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.ServiceLoader;
 import java.util.logging.Level;
 
 import org.jboss.set.aphrodite.Aphrodite;
@@ -41,9 +41,9 @@ import org.jboss.set.aphrodite.spi.AphroditeException;
 import org.jboss.set.aphrodite.spi.NotFoundException;
 import org.jboss.set.cryo.process.BisectablePullRequest;
 import org.jboss.set.cryo.process.BisectablePullRequest.CryoPRState;
-import org.jboss.set.cryo.process.ExecuteProcess;
 import org.jboss.set.cryo.process.MergeResult;
-import org.jboss.set.cryo.process.ProcessResult;
+import org.jboss.set.cryo.staging.OperationCenter;
+import org.jboss.set.cryo.staging.OperationResult;
 
 /**
  * Cryo storage util. It will do some magic, merge, bisect and eventually push into cryo branch that will await awakening when
@@ -54,87 +54,9 @@ import org.jboss.set.cryo.process.ProcessResult;
  */
 public class Cryo {
 
-    // TODO: check jgit in v2(though it does not have bisect it seems)
-    public static final String[] COMMAND_GIT_GET_URL = new String[] {"git", "remote", "get-url", "origin" };
-
-    public static final String[] COMMAND_GIT_GET_CURRENT_BRANCH = new String[] { "git", "rev-parse", "--abbrev-ref", "HEAD" };
-
-    public static final String[] COMMAND_GIT_CHECKOUT_NEW_BRANCH = new String[] { "git", "checkout", "-b" };
-
-    public static final String[] COMMAND_GIT_READ_CURRENT_COMMIT_HEAD = new String[] { "git", "rev-parse", "HEAD" };
-    // git rev-list --max-count=1 FIRST_COMMIT_IN_MERGE_LIST^
-    public static final String[] COMMAND_GIT_READ_PREVIOUS_COMMIT_TO = new String[] { "git", "rev-list", "--max-count=1" };
-
-    public static final String[] COMMAND_MVN_CLEAN = new String[] { "mvn", "clean", "-DallTests" };
-
-    public static final String[] COMMAND_MVN_INSTALL_AND_TEST = new String[] { "mvn", "install", "-fae", "-DallTests" };
-
-    public static final String[] COMMAND_GIT_BISECT_START = new String[] { "git", "bisect", "start" };
-
-    public static final String[] COMMAND_GIT_BISECT_GOOD = new String[] { "git", "bisect", "good" };
-
-    public static final String[] COMMAND_GIT_BISECT_BAD = new String[] { "git", "bisect", "bad" };
-
-    public static final String[] COMMAND_GIT_BISECT_RESTART = new String[] { "git", "bisect", "restart" };
-
-    public static final String[] COMMAND_GIT_BISECT_RUN = new String[] { "git", "bisect", "run", "mvn", "clean", "install",
-            "-fae", "-DallTests" };
-
-    public static final String[] COMMAND_GIT_PUSH = new String[] { "git", "push", "origin" };
-
-    //public static final String[] COMMAND_GIT_MERGE_ABORT = new String[] { "git", "merge", "--abort" };
-
-    public static final String[] COMMAND_GIT_MERGE_ABORT = new String[] { "git", "reset", "--merge" };
-
-    public static final String[] COMMAND_GIT_RESET_TO = new String[] { "git", "reset", "--hard" };
-
-    public static String[] COMMAND_GIT_RESET_TO_PREVIOUS(final String commitHash) {
-        final String[] cmd = Arrays.copyOf(COMMAND_GIT_RESET_TO, COMMAND_GIT_RESET_TO.length + 1);
-        cmd[cmd.length - 1] = commitHash + "^";
-        return cmd;
-    }
-
-    public static String[] COMMAND_GIT_RESET_TO_POINT(final String commitHash) {
-        final String[] cmd = Arrays.copyOf(COMMAND_GIT_RESET_TO, COMMAND_GIT_RESET_TO.length + 1);
-        cmd[cmd.length - 1] = commitHash;
-        return cmd;
-    }
-
-    public static String[] COMMAND_MERGE_PR(final String prNumber) {
-        return new String[] { "merge.sh", "origin", prNumber };
-    }
-
-    public static String[] COMMAND_GIT_CHECKOUT_NEW_BRANCH(final String branchName) {
-        final String[] cmd = Arrays.copyOf(COMMAND_GIT_CHECKOUT_NEW_BRANCH, COMMAND_GIT_CHECKOUT_NEW_BRANCH.length + 1);
-        cmd[cmd.length - 1] = branchName;
-        return cmd;
-    }
-
-    public static String[] COMMAND_GIT_READ_PREVIOUS_COMMIT_TO(final String markedCommit) {
-        final String[] cmd = Arrays.copyOf(COMMAND_GIT_READ_PREVIOUS_COMMIT_TO, COMMAND_GIT_READ_PREVIOUS_COMMIT_TO.length + 1);
-        cmd[cmd.length - 1] = markedCommit + "^";
-        return cmd;
-    }
-
-    public static String[] COMMAND_GIT_BISECT_GOOD(final String markedCommit) {
-        final String[] cmd = Arrays.copyOf(COMMAND_GIT_BISECT_GOOD, COMMAND_GIT_BISECT_GOOD.length + 1);
-        cmd[cmd.length - 1] = markedCommit;
-        return cmd;
-    }
-
-    public static String[] COMMAND_GIT_BISECT_BAD(final String markedCommit) {
-        final String[] cmd = Arrays.copyOf(COMMAND_GIT_BISECT_BAD, COMMAND_GIT_BISECT_BAD.length + 1);
-        cmd[cmd.length - 1] = markedCommit;
-        return cmd;
-    }
-
-    public static String[] COMMAND_GIT_PUSH(final String branch) {
-        final String[] cmd = Arrays.copyOf(COMMAND_GIT_PUSH, COMMAND_GIT_PUSH.length + 1);
-        cmd[cmd.length - 1] = branch;
-        return cmd;
-    }
-
     private static final SimpleContainer simpleContainer = (SimpleContainer) SimpleContainer.instance();
+
+    private OperationCenter operationCenter;
     /**
      * Physical location of repository to work on - most likely created with git clone.
      */
@@ -169,6 +91,14 @@ public class Cryo {
      *
      */
     protected boolean init() {
+        ServiceLoader<OperationCenter> opsCore
+        = ServiceLoader.load(OperationCenter.class);
+        if(opsCore.iterator().hasNext()) {
+            this.operationCenter = opsCore.iterator().next().initializeOperationCenter(new Object[] {this.repositoryLocation});
+        } else {
+            Main.log(Level.SEVERE, "Failed to create OperationCenter...");
+            return false;
+        }
         if (!determineRepositoryURL()) {
             return false;
         }
@@ -195,9 +125,7 @@ public class Cryo {
 
     protected boolean determineRepositoryURL() {
         //final ProcessBuilder readRepoURL = new ProcessBuilder("git", "remote", "get-url", "origin");
-        final ProcessBuilder readRepoURL = new ProcessBuilder(COMMAND_GIT_GET_URL);
-        readRepoURL.directory(repositoryLocation);
-        final ProcessResult result = new ExecuteProcess(readRepoURL).getProcessResult();
+        final OperationResult result = this.operationCenter.determineRepositoryURL();
         switch (result.getOutcome()) {
             case SUCCESS:
                 Main.log(Level.INFO, "[SUCCESS] Repository URL: {0}", result.getOutput());
@@ -217,9 +145,7 @@ public class Cryo {
 
     protected boolean determineCurrentBranch() {
 
-        final ProcessBuilder readCurrentBranch = new ProcessBuilder(COMMAND_GIT_GET_CURRENT_BRANCH);
-        readCurrentBranch.directory(repositoryLocation);
-        final ProcessResult result = new ExecuteProcess(readCurrentBranch).getProcessResult();
+        final OperationResult result = this.operationCenter.determineCurrentBranch();
         switch (result.getOutcome()) {
             case SUCCESS:
                 Main.log(Level.INFO, "[SUCCESS] Repository branch: {0}", result.getOutput());
@@ -239,12 +165,10 @@ public class Cryo {
      */
     protected boolean cleanUpRepository() {
         // Just in case.
-        // final ProcessBuilder readRepoURL = new ProcessBuilder("mvn", "clean", "-DallTests");
-        final ProcessBuilder cleanRepository = new ProcessBuilder(COMMAND_MVN_CLEAN);
-        cleanRepository.directory(repositoryLocation);
-        final ProcessResult result = new ExecuteProcess(cleanRepository).getProcessResult();
+        final OperationResult result = this.operationCenter.cleanUpRepository();
         switch (result.getOutcome()) {
             case SUCCESS:
+                //TODO: this is wrong?
                 Main.log(Level.INFO, "Cleanup of repository: {0}", result.getOutput());
                 return true;
             case FAILURE:
@@ -255,9 +179,7 @@ public class Cryo {
     }
 
     protected boolean buildAndRunTestsuite() {
-        final ProcessBuilder buildRepository = new ProcessBuilder(COMMAND_MVN_INSTALL_AND_TEST);
-        buildRepository.directory(repositoryLocation);
-        final ProcessResult result = new ExecuteProcess(buildRepository).getProcessResult();
+        final OperationResult result = this.operationCenter.buildAndRunTestsuite();
         switch (result.getOutcome()) {
             case SUCCESS:
                 Main.log(Level.INFO, "[SUCCESS] Build and test: {0}", result.getOutput());
@@ -300,7 +222,7 @@ public class Cryo {
             List<PullRequest> allPullRequests = aphrodite.getPullRequestsByState(repository, PullRequestState.OPEN);
             for (PullRequest pullRequest : allPullRequests) {
                 if (pullRequest.getCodebase().getName().equalsIgnoreCase(this.branch)) {
-                    final BisectablePullRequest bisectablePullRequest = new BisectablePullRequest(this.repositoryLocation,
+                    final BisectablePullRequest bisectablePullRequest = new BisectablePullRequest(this.operationCenter,
                             pullRequest);
                     this.coldStorage.add(bisectablePullRequest);
                 }
@@ -385,9 +307,7 @@ public class Cryo {
      */
     protected boolean setUpFutureBranch() {
         this.futureBranch = this.branch + ".future";
-        final ProcessBuilder checkoutNewBranch = new ProcessBuilder(COMMAND_GIT_CHECKOUT_NEW_BRANCH(this.futureBranch));
-        checkoutNewBranch.directory(repositoryLocation);
-        final ProcessResult result = new ExecuteProcess(checkoutNewBranch).getProcessResult();
+        final OperationResult result = this.operationCenter.createNewBranch(this.futureBranch);
         switch (result.getOutcome()) {
             case SUCCESS:
                 Main.log(Level.INFO, "[SUCCESS] Created branch: {0}", this.futureBranch);
@@ -512,9 +432,7 @@ public class Cryo {
             return;
         }
         if (getGoodPullRequestCount() != 0) {
-            final ProcessBuilder pushBranch = new ProcessBuilder(COMMAND_GIT_PUSH(this.futureBranch));
-            pushBranch.directory(repositoryLocation);
-            final ProcessResult result = new ExecuteProcess(pushBranch).getProcessResult();
+            final OperationResult result = this.operationCenter.pushCurrentBranch(this.futureBranch);
             switch (result.getOutcome()) {
                 case SUCCESS:
                     Main.log(Level.FINE, "[BISECT] [SUCCESS] Push future branch: {0}", result.getOutput());

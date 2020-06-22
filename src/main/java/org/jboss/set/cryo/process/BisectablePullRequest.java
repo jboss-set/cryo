@@ -21,14 +21,14 @@
  */
 package org.jboss.set.cryo.process;
 
-import java.io.File;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.logging.Level;
 
 import org.jboss.set.aphrodite.domain.PullRequest;
-import org.jboss.set.cryo.Cryo;
 import org.jboss.set.cryo.Main;
+import org.jboss.set.cryo.staging.OperationCenter;
+import org.jboss.set.cryo.staging.OperationResult;
 
 /**
  * Simple wrapper for PR with some additional stuff.
@@ -39,17 +39,17 @@ import org.jboss.set.cryo.Main;
 public class BisectablePullRequest {
 
     protected CryoPRState state = CryoPRState.PRISTINE;
-    protected PullRequest pullRequest;
+    protected final PullRequest pullRequest;
     protected BisectablePullRequest parent;
     //hold merge id in order to unmerge if needs be.
     protected String mergeCommitID;
-
+    protected final OperationCenter operationCenter;
     //TODO: possibly remove this
-    protected File repositoryLocation;
-    public BisectablePullRequest(final File repositoryLocation, final PullRequest pullRequest) {
+    public BisectablePullRequest(final OperationCenter operationCenter, final PullRequest pullRequest) {
         super();
         this.pullRequest = pullRequest;
-        this.repositoryLocation = repositoryLocation;
+        //INFO: a bit counter pattern but this allows us to have action methods in BPR
+        this.operationCenter = operationCenter;
     }
 
     public CryoPRState getState() {
@@ -75,14 +75,12 @@ public class BisectablePullRequest {
             return false;
         }
 
-        final ProcessBuilder mergePullRequest = new ProcessBuilder(Cryo.COMMAND_MERGE_PR(getId()));
-        mergePullRequest.directory(repositoryLocation);
-        final ProcessResult result = new ExecuteProcess(mergePullRequest).getProcessResult();
+        final OperationResult result = this.operationCenter.mergePullRequest(this.getId());
         switch (result.getOutcome()) {
             case SUCCESS:
                 Main.log(Level.INFO, "[SUCCESS] Merge of: {0}", getId());
                 this.state = CryoPRState.MERGED;
-                final ProcessResult read = this.readMergeCommitHash();
+                final OperationResult read = this.readMergeCommitHash();
                 switch(read.getOutcome()) {
                     case SUCCESS:
                         this.mergeCommitID = read.getOutput();
@@ -110,10 +108,7 @@ public class BisectablePullRequest {
         if (state == CryoPRState.NO_MERGE) {
             //NOTE: in case of merge failure repo is in limbo state. Current commit is old head, no new PRs in index are present
             //so reset to HEAD is enough
-            //final ProcessBuilder readRepoURL = new ProcessBuilder(Cryo.COMMAND_GIT_RESET_TO_POINT("HEAD"));
-            final ProcessBuilder mergeAbort = new ProcessBuilder(Cryo.COMMAND_GIT_MERGE_ABORT);
-            mergeAbort.directory(repositoryLocation);
-            final ProcessResult result = new ExecuteProcess(mergeAbort).getProcessResult();
+            final OperationResult result = this.operationCenter.abortMerge();
             switch (result.getOutcome()) {
                 case SUCCESS:
                     Main.log(Level.INFO, "[SUCCESS] Revert pull request after failure: {0}", getId());
@@ -125,9 +120,7 @@ public class BisectablePullRequest {
                     return false;
             }
         } else if(state == CryoPRState.MERGED){
-            final ProcessBuilder mergeRevert = new ProcessBuilder(Cryo.COMMAND_GIT_RESET_TO_PREVIOUS(mergeCommitID));
-            mergeRevert.directory(repositoryLocation);
-            final ProcessResult result = new ExecuteProcess(mergeRevert).getProcessResult();
+            final OperationResult result = this.operationCenter.revertToPreviousCommit(mergeCommitID);
             switch (result.getOutcome()) {
                 case SUCCESS:
                     Main.log(Level.INFO, "[SUCCESS] Revert pull request: {0}", getId());
@@ -146,10 +139,8 @@ public class BisectablePullRequest {
         return true;
     }
 
-    protected ProcessResult readMergeCommitHash() {
-        final ProcessBuilder readCommitHead = new ProcessBuilder(Cryo.COMMAND_GIT_READ_CURRENT_COMMIT_HEAD);
-        readCommitHead.directory(repositoryLocation);
-        return new ExecuteProcess(readCommitHead).getProcessResult();
+    protected OperationResult readMergeCommitHash() {
+        return this.operationCenter.readRepositoryCommitHEAD();
     }
     public String getId() {
         return this.pullRequest.getId();

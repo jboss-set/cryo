@@ -19,27 +19,28 @@
  * Software Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA
  * 02110-1301 USA, or see the FSF site: http://www.fsf.org.
  */
-package org.jboss.set.cryo.process;
+package org.jboss.set.cryo.staging;
 
 import java.util.logging.Level;
 
 import org.jboss.set.cryo.Main;
 
-public class ProcessResult {
+public class OperationResult {
 
     private Outcome outcome;
     private String output;
     private Throwable error;
+    //TODO: possible separate this as well?
     private ProcessBuilder processBuilder;
 
-    public ProcessResult(final ProcessBuilder processBuilder, final Outcome outcome, final String output) {
+    public OperationResult(final ProcessBuilder processBuilder, final Outcome outcome, final String output) {
         super();
         this.processBuilder = processBuilder;
         this.outcome = outcome;
         this.output = output;
     }
 
-    public ProcessResult(final ProcessBuilder processBuilder, final Outcome outcome, final String output,
+    public OperationResult(final ProcessBuilder processBuilder, final Outcome outcome, final String output,
             final Exception error) {
         super();
         this.processBuilder = processBuilder;

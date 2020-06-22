@@ -27,6 +27,8 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.util.stream.Collectors;
 
+import org.jboss.set.cryo.staging.OperationResult;
+
 public class ExecuteProcess {
 
     protected final ProcessBuilder processBuilder;
@@ -36,20 +38,20 @@ public class ExecuteProcess {
         this.processBuilder = processBuilder;
     }
 
-    public ProcessResult getProcessResult() {
+    public OperationResult getProcessResult() {
         Process process = null;
         try {
             process = processBuilder.start();
             final int result = process.waitFor();
             final String output = readOutput(process);
-            return result == 0 ? new ProcessResult(processBuilder, ProcessResult.Outcome.SUCCESS, output) : new ProcessResult(processBuilder, ProcessResult.Outcome.FAILURE, output);
+            return result == 0 ? new OperationResult(processBuilder, OperationResult.Outcome.SUCCESS, output) : new OperationResult(processBuilder, OperationResult.Outcome.FAILURE, output);
         } catch( Exception e) {
             if(process != null) {
 //                final int result = process.exitValue();
                 final String output = readOutput(process);
-                return new ProcessResult(processBuilder, ProcessResult.Outcome.FAILURE, output,e);
+                return new OperationResult(processBuilder, OperationResult.Outcome.FAILURE, output,e);
             } else {
-                return new ProcessResult(processBuilder, ProcessResult.Outcome.FAILURE, null, e);
+                return new OperationResult(processBuilder, OperationResult.Outcome.FAILURE, null, e);
             }
         }
     }
