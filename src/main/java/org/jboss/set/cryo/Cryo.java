@@ -210,7 +210,7 @@ public class Cryo {
                 return true;
             case FAILURE:
             default:
-                result.reportError();
+                result.reportError("Failed to determine repository URL");
                 return false;
         }
     }
@@ -227,7 +227,7 @@ public class Cryo {
                 return true;
             case FAILURE:
             default:
-                result.reportError();
+                result.reportError("Failed to determine current branch");
                 return false;
         }
     }
@@ -249,7 +249,7 @@ public class Cryo {
                 return true;
             case FAILURE:
             default:
-                result.reportError();
+                result.reportError("Cleanup of repository");
                 return false;
         }
     }
@@ -264,7 +264,7 @@ public class Cryo {
                 return true;
             case FAILURE:
             default:
-                result.reportError();
+                result.reportError("Build and testsuite run");
                 return false;
         }
     }
@@ -394,7 +394,7 @@ public class Cryo {
                 break;
             case FAILURE:
             default:
-                result.reportError();
+                result.reportError("Failed to create future branch");
                 return false;
         }
 
