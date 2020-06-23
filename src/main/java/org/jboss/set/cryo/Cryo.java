@@ -28,6 +28,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.ServiceLoader;
+import java.util.Set;
 import java.util.logging.Level;
 
 import org.jboss.set.aphrodite.Aphrodite;
@@ -75,15 +76,17 @@ public class Cryo {
 
     protected Aphrodite aphrodite;
     protected List<BisectablePullRequest> coldStorage;
-    protected boolean dryRun = true;
-    protected boolean invert = true;
+    protected final boolean dryRun;
+    protected final boolean invert;
+    protected final Set<String> excludeSet;
     // TODO: redo with more sophisticated state machine
     protected boolean weDone = false;
 
-    public Cryo(final File directory, final boolean dryRun, final boolean invert) {
+    public Cryo(final File directory, final boolean dryRun, final boolean invert, Set<String> excludeSet) {
         this.repositoryLocation = directory;
         this.dryRun = dryRun;
         this.invert = invert;
+        this.excludeSet = excludeSet;
     }
 
     /**
@@ -168,7 +171,6 @@ public class Cryo {
         final OperationResult result = this.operationCenter.cleanUpRepository();
         switch (result.getOutcome()) {
             case SUCCESS:
-                //TODO: this is wrong?
                 Main.log(Level.INFO, "Cleanup of repository: {0}", result.getOutput());
                 return true;
             case FAILURE:
@@ -230,6 +232,7 @@ public class Cryo {
             if(this.invert) {
                 Collections.reverse(this.coldStorage);
             }
+            ostracizeColdStorage();
             return true;
         } catch (NotFoundException e) {
             Main.log(Level.SEVERE, "Failed to fetch repository '"+this.repositoryURL+"' due to:", e);
@@ -268,6 +271,18 @@ public class Cryo {
         // Main.log(Level.SEVERE, "Failed to fetch repository '%s' due to '%s'", new Object[] { this.repositoryURL, e });
         // }
         // return false;
+    }
+
+    /**
+     * Mark PRs as excluded if they are in exclude set. This will take care of deps as well - somehow
+     */
+    protected void ostracizeColdStorage() {
+        if(excludeSet.size()>0)
+        for(BisectablePullRequest bisectablePullRequest:this.coldStorage) {
+            if(this.excludeSet.contains(bisectablePullRequest.getId())) {
+                bisectablePullRequest.markExclude();
+            }
+        }
     }
 
     protected void createStorage() {

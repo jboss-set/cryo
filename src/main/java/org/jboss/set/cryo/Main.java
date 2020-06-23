@@ -22,8 +22,13 @@
 package org.jboss.set.cryo;
 
 import java.io.File;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Set;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+
+import com.google.common.collect.ImmutableSet;
 
 import net.sourceforge.argparse4j.ArgumentParsers;
 import net.sourceforge.argparse4j.impl.Arguments;
@@ -32,6 +37,13 @@ import net.sourceforge.argparse4j.inf.ArgumentParserException;
 import net.sourceforge.argparse4j.inf.Namespace;
 
 public class Main {
+    private static final String[] ARG_REPOSITORY = new String[] {"-r", "--repository"};
+    private static final String[] ARG_DRYRUN = new String[] {"-d", "--dry-run"};
+    private static final String[] ARG_INVERT = new String[] {"-i", "--invert"};
+    private static final String[] ARG_EXCLUDE = new String[] {"-e","--exclude"};
+    private static String CONVERT_TO_ARG_ID(final String id) {
+        return id.replaceFirst("--", "").replaceAll("-", "_");
+    }
     private static Logger LOGGER = Logger.getLogger(Main.class.getPackage().getName());
 //    static {
 //        try {
@@ -43,21 +55,29 @@ public class Main {
 //            e.printStackTrace();
 //        }
 //    }
+
     public static void main(String[] args) throws Exception {
 
           // NOTE: does not seem we need args? branchName, URL etc can be retrieved from repo.
         ArgumentParser parser = ArgumentParsers.newArgumentParser("cryo");
-        parser.addArgument("-r", "--repository").nargs(1).required(true)
+        parser.addArgument(ARG_REPOSITORY).nargs(1).required(true)
                 .help("Full patht o local clone of remote repository");
-        parser.addArgument("-d", "--dry-run").action(Arguments.storeTrue()).required(false)
+        parser.addArgument(ARG_DRYRUN).action(Arguments.storeTrue()).required(false)
         .help("If present no changes will be pushed to remote repo, only local one will contain. Good for validation.");
-        parser.addArgument("-i", "--invert").action(Arguments.storeTrue()).required(false)
+        parser.addArgument(ARG_INVERT).action(Arguments.storeTrue()).required(false)
         .help("Invert order of PRs. By default aphrodite/github return new PRs first.");
+        parser.addArgument(ARG_EXCLUDE).nargs(1).required(false).help("Comma separated list of PR IDs(integer) that will be excluded from reactor.");
         try {
             Namespace ns = parser.parseArgs(args);
-            final File directory = new File(ns.getString("repository").replace("[", "").replace("]", ""));
-
-            final Cryo freezerProgram = new Cryo(directory,ns.getBoolean("dry_run"), ns.getBoolean("invert"));
+            final File directory = new File(ns.getString(CONVERT_TO_ARG_ID(ARG_REPOSITORY[1])).replace("[", "").replace("]", ""));
+            Set<String> excludeSet = null;
+            if(ns.get(CONVERT_TO_ARG_ID(ARG_EXCLUDE[1])) != null) {
+                String interimExclude = ns.getString(CONVERT_TO_ARG_ID(ARG_EXCLUDE[1])).replace("[", "").replace("]", "");
+                excludeSet = ImmutableSet.copyOf(Arrays.asList(interimExclude.split(",")));
+            } else {
+                excludeSet = ImmutableSet.copyOf(new ArrayList<String>());
+            }
+            final Cryo freezerProgram = new Cryo(directory,ns.getBoolean(CONVERT_TO_ARG_ID(ARG_DRYRUN[1])), ns.getBoolean(CONVERT_TO_ARG_ID(ARG_INVERT[1])),excludeSet);
             freezerProgram.createStorage();
         } catch (ArgumentParserException e) {
             parser.handleError(e);

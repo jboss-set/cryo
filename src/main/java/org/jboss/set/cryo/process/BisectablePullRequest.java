@@ -162,6 +162,10 @@ public class BisectablePullRequest {
         this.state = CryoPRState.CORRUPTED;
     }
 
+    public void markExclude() {
+        this.state = CryoPRState.EXCLUDE;
+    }
+
     public static enum CryoPRState {
         /**
          * Initial state
@@ -183,6 +187,10 @@ public class BisectablePullRequest {
          * Fails to merge
          */
         NO_MERGE,
+        /**
+         * Excluded from reactor
+         */
+        EXCLUDE,
         /**
          * wrong meta, has deps that are not in stream - basically anything else that needs to be reported that does not fall into FAIL/NO_MERGE
          */
