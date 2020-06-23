@@ -79,14 +79,16 @@ public class Cryo {
     protected final boolean dryRun;
     protected final boolean invert;
     protected final Set<String> excludeSet;
+    protected final String suffix;
     // TODO: redo with more sophisticated state machine
     protected boolean weDone = false;
 
-    public Cryo(final File directory, final boolean dryRun, final boolean invert, Set<String> excludeSet) {
+    public Cryo(final File directory, final boolean dryRun, final boolean invert, Set<String> excludeSet, String suffix) {
         this.repositoryLocation = directory;
         this.dryRun = dryRun;
         this.invert = invert;
         this.excludeSet = excludeSet;
+        this.suffix = suffix;
     }
 
     /**
@@ -127,7 +129,6 @@ public class Cryo {
     }
 
     protected boolean determineRepositoryURL() {
-        //final ProcessBuilder readRepoURL = new ProcessBuilder("git", "remote", "get-url", "origin");
         final OperationResult result = this.operationCenter.determineRepositoryURL();
         switch (result.getOutcome()) {
             case SUCCESS:
@@ -321,7 +322,7 @@ public class Cryo {
      * @return
      */
     protected boolean setUpFutureBranch() {
-        this.futureBranch = this.branch + ".future";
+        this.futureBranch = this.branch + this.suffix;
         final OperationResult result = this.operationCenter.createNewBranch(this.futureBranch);
         switch (result.getOutcome()) {
             case SUCCESS:

@@ -136,7 +136,7 @@ public class BisectablePullRequest {
                     return false;
             }
         }
-        return true;
+        return false;
     }
 
     protected OperationResult readMergeCommitHash() {

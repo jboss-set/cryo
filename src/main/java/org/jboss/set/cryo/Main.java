@@ -41,6 +41,7 @@ public class Main {
     private static final String[] ARG_DRYRUN = new String[] {"-d", "--dry-run"};
     private static final String[] ARG_INVERT = new String[] {"-i", "--invert"};
     private static final String[] ARG_EXCLUDE = new String[] {"-e","--exclude"};
+    private static final String[] ARG_SUFIX = new String[] {"-s","--sufix"};
     private static String CONVERT_TO_ARG_ID(final String id) {
         return id.replaceFirst("--", "").replaceAll("-", "_");
     }
@@ -60,6 +61,7 @@ public class Main {
 
           // NOTE: does not seem we need args? branchName, URL etc can be retrieved from repo.
         ArgumentParser parser = ArgumentParsers.newArgumentParser("cryo");
+        parser.description("Hadny dandy contraption to create some branch. Clone clean repo, check PRs you want. Do a dry run for fun and safety(push might be manual step after verification).");
         parser.addArgument(ARG_REPOSITORY).nargs(1).required(true)
                 .help("Full patht o local clone of remote repository");
         parser.addArgument(ARG_DRYRUN).action(Arguments.storeTrue()).required(false)
@@ -67,6 +69,8 @@ public class Main {
         parser.addArgument(ARG_INVERT).action(Arguments.storeTrue()).required(false)
         .help("Invert order of PRs. By default aphrodite/github return new PRs first.");
         parser.addArgument(ARG_EXCLUDE).nargs(1).required(false).help("Comma separated list of PR IDs(integer) that will be excluded from reactor.");
+        parser.addArgument(ARG_SUFIX).nargs(1).required(false).setDefault(".future").help("Sufix to use, default is '.future'.");
+
         try {
             Namespace ns = parser.parseArgs(args);
             final File directory = new File(ns.getString(CONVERT_TO_ARG_ID(ARG_REPOSITORY[1])).replace("[", "").replace("]", ""));
@@ -77,7 +81,8 @@ public class Main {
             } else {
                 excludeSet = ImmutableSet.copyOf(new ArrayList<String>());
             }
-            final Cryo freezerProgram = new Cryo(directory,ns.getBoolean(CONVERT_TO_ARG_ID(ARG_DRYRUN[1])), ns.getBoolean(CONVERT_TO_ARG_ID(ARG_INVERT[1])),excludeSet);
+            final String suffix = ns.getString(CONVERT_TO_ARG_ID(ARG_SUFIX[1])).replace("[", "").replace("]", "");
+            final Cryo freezerProgram = new Cryo(directory,ns.getBoolean(CONVERT_TO_ARG_ID(ARG_DRYRUN[1])), ns.getBoolean(CONVERT_TO_ARG_ID(ARG_INVERT[1])),excludeSet, suffix);
             freezerProgram.createStorage();
         } catch (ArgumentParserException e) {
             parser.handleError(e);
