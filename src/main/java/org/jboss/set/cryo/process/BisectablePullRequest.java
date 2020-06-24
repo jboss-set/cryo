@@ -87,19 +87,18 @@ public class BisectablePullRequest {
                         break;
                     case FAILURE:
                     default:
-                        read.reportError("Merge of: "+getId());
-                        //TODO: make it gracious.
-                        throw new RuntimeException();
+                        read.reportError();
+                        throw new RuntimeException("[CRYO] Failed to read merge info after merging PR["+this.getPullRequest().getURL()+"], repository is in corrupted state. Exploding!");
                 }
                 return true;
             case FAILURE:
+            default:
                 this.state = CryoPRState.NO_MERGE;
+                result.reportError();
                 if(!reverse()) {
                     //TODO: make it better
-                    throw new RuntimeException();
+                    throw new RuntimeException("[CRYO] Failed to clean up PR["+this.getPullRequest().getURL()+"], repository is in corrupted state. Exploding!");
                 }
-            default:
-                result.reportError();
                 return false;
         }
     }

@@ -224,6 +224,7 @@ public class Cryo {
             final Repository repository = this.aphrodite.getRepository(this.repositoryURL);
             List<PullRequest> allPullRequests = aphrodite.getPullRequestsByState(repository, PullRequestState.OPEN);
             for (PullRequest pullRequest : allPullRequests) {
+                //INFO: we fetch all PRs for branch, regardless of
                 if (pullRequest.getCodebase().getName().equalsIgnoreCase(this.branch)) {
                     final BisectablePullRequest bisectablePullRequest = new BisectablePullRequest(this.operationCenter,
                             pullRequest);
@@ -394,8 +395,10 @@ public class Cryo {
         // retain only good PRs, rest will follow in another batch of merge.
         // NOTE: check if this is correct
         //TODO: do we need to check on this reverse?
-        if(!danceFloor[firstBad].reverse())
-            throw new RuntimeException();
+        if(!danceFloor[firstBad].reverse()) {
+            //NOTE: this should not happen unless there is something serious going on, blow up now.
+            throw new RuntimeException("[CRYO] [BISECT] Failed to reverse first bad["+danceFloor[firstBad].getPullRequest().getURL()+"], repository is in corrupted state. Exploding!");
+        }
         danceFloor[firstBad].markFailed();
         for (int i = 0; i < firstBad; i++) {
             danceFloor[i].markGood();
@@ -424,7 +427,7 @@ public class Cryo {
             for (; currentMergePoint > point; currentMergePoint--) {
               //TODO: is boom enough?
                 if(!target[currentMergePoint].reverse())
-                    throw new RuntimeException();
+                    throw new RuntimeException("[CRYO] [BISECT] Failed to adjust merge range["+target[currentMergePoint].getPullRequest().getURL()+"], repository is in corrupted state. Exploding!");
             }
         } else {
             // merge, left to right
@@ -434,7 +437,7 @@ public class Cryo {
             for (; currentMergePoint <= point; currentMergePoint++) {
                 //TODO: is boom enough?
                 if(!target[currentMergePoint].merge())
-                    throw new RuntimeException();
+                    throw new RuntimeException("[CRYO] [BISECT] Failed to adjust merge range["+target[currentMergePoint].getPullRequest().getURL()+"], repository is in corrupted state. Exploding!");
             }
         }
     }
