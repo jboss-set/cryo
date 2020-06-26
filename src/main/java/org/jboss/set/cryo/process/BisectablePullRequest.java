@@ -22,6 +22,7 @@
 package org.jboss.set.cryo.process;
 
 import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.List;
 import java.util.logging.Level;
 
@@ -40,11 +41,14 @@ public class BisectablePullRequest {
 
     protected CryoPRState state = CryoPRState.PRISTINE;
     protected final PullRequest pullRequest;
-    protected BisectablePullRequest parent;
+
     //hold merge id in order to unmerge if needs be.
     protected String mergeCommitID;
     protected final OperationCenter operationCenter;
-    //TODO: possibly remove this
+
+    //dependency stuff
+    protected BisectablePullRequest dependant;
+    protected List<BisectablePullRequest> dependencies = new ArrayList<>();
     public BisectablePullRequest(final OperationCenter operationCenter, final PullRequest pullRequest) {
         super();
         this.pullRequest = pullRequest;
@@ -61,8 +65,48 @@ public class BisectablePullRequest {
     }
 
     public List<BisectablePullRequest> getDependencies(){
-        //TODO: fill this
-        return new ArrayList<>();
+        return this.dependencies;
+    }
+
+    public boolean hasDependencies() {
+        return this.dependencies.size() > 0;
+    }
+
+    public boolean hasDefinedDependencies() {
+        return this.pullRequest.hasDependencies();
+    }
+
+    public boolean hasDependant() {
+        return this.dependant != null;
+    }
+
+    /**
+     * Add dependency, check if either father or child is corrupted and mark both properly;
+     * @param bisectablePullRequest
+     * @return
+     */
+    public boolean addDependency(final BisectablePullRequest bisectablePullRequest) {
+      //TODO: vet state:
+      // - mark as corrupted if dep is corrupted
+      // - mark both/one as corrupt in case of false
+        if(bisectablePullRequest.dependant != null && bisectablePullRequest.dependant.equals(this)) {
+            //TODO: if more than one PR is permitted to depend on another one, this has to be changed
+            Main.log(Level.WARNING, "Pull Request[{0}] is already dependency of [{1}], can not add it as dependency of [{2}]. Marking both as corrupted!", new Object[] {
+                    bisectablePullRequest.getPullRequest().getURL(),bisectablePullRequest.dependant.getPullRequest().getURL(), this.pullRequest.getURL()
+            });
+            this.markCorrupted();
+            bisectablePullRequest.markCorrupted();
+            return false;
+        } else {
+            if(bisectablePullRequest.getState() == CryoPRState.CORRUPTED) {
+                this.markCorrupted();
+            } else if(this.getState() ==CryoPRState.CORRUPTED) {
+                bisectablePullRequest.markCorrupted();
+            }
+            bisectablePullRequest.dependant = this;
+            this.dependencies.add(bisectablePullRequest);
+            return true;
+        }
     }
 
     /**
@@ -70,11 +114,37 @@ public class BisectablePullRequest {
      * @return
      */
     public boolean merge() {
+        //INFO: merge can only come from root. Leafs are not invoked directly. Root does it.
         if(state != CryoPRState.PRISTINE) {
             //NOTE: should this throw?
             return false;
         }
 
+        if(this.dependencies.size()>0) {
+            //INFO: Merge left to right (this should roughly retain order from "fetch")
+            for(int index = 0;index<this.dependencies.size(); index++) {
+                BisectablePullRequest dependency = this.dependencies.get(index);
+                if(!dependency.merge()) {
+                    //TODO: move to to reverse?
+                    //TODO: CHECK FOR BUG we merge left to right, than go up and merge - meaning root merge commit contains ALL DEPS
+                    //if we unmerge leafs and than issue unmerge on root, we end up unmerging root and keep leafs.
+                    //INFO: this handles NO_MERGE for deps
+                    Main.log(Level.WARNING, "Failed to merge dependency of PR[{0}], failed dependency[{1}]", new Object[] {this.getPullRequest().getURL(),dependency.getPullRequest().getURL()});
+                    //reverse previous if we are root, NO_MERGE
+                    for(int revIndex = index-1;revIndex>=0;revIndex--) {
+                        dependency = this.dependencies.get(revIndex);
+                        if(!dependency.reverse()) {
+                            //TODO: make it better
+                            throw new RuntimeException("[CRYO] Failed to clean up PR["+this.getPullRequest().getURL()+"], failed dependency["+dependency.getPullRequest().getURL()+"], repository is in corrupted state. Exploding!");
+                        }
+                    }
+                    this._markNoMerge(true);
+                    return false;
+                }
+            }
+        }
+
+        //INFO MERGE local root.
         final OperationResult result = this.operationCenter.mergePullRequest(this.getId());
         switch (result.getOutcome()) {
             case SUCCESS:
@@ -93,12 +163,15 @@ public class BisectablePullRequest {
                 return true;
             case FAILURE:
             default:
+                //INFO: mark only this one for abort, rest will do regular. After reverse markNoMerge for whole tree
                 this.state = CryoPRState.NO_MERGE;
                 result.reportError();
                 if(!reverse()) {
                     //TODO: make it better
                     throw new RuntimeException("[CRYO] Failed to clean up PR["+this.getPullRequest().getURL()+"], repository is in corrupted state. Exploding!");
                 }
+                //only mark our subtree.
+                this._markNoMerge(true);
                 return false;
         }
     }
@@ -111,6 +184,8 @@ public class BisectablePullRequest {
             switch (result.getOutcome()) {
                 case SUCCESS:
                     Main.log(Level.INFO, "[SUCCESS] Revert pull request after failure: {0}", getId());
+                    //INFO: just in case
+                    //this._markNoMerge(true);
                     return true;
                 case FAILURE:
                 default:
@@ -119,16 +194,28 @@ public class BisectablePullRequest {
                     return false;
             }
         } else if(state == CryoPRState.MERGED){
+            //INFO: reverse TOP to BOTTOM, RIGHT to LEFT - in reality we could revert first left most dep( first one merged)
             final OperationResult result = this.operationCenter.revertToPreviousCommit(mergeCommitID);
             switch (result.getOutcome()) {
                 case SUCCESS:
-                    Main.log(Level.INFO, "[SUCCESS] Revert pull request: {0}", getId());
+                    Main.log(Level.INFO, "[SUCCESS] Revert pull request: {0} to previous {1}, {2}",
+                            new Object[] { getId(), mergeCommitID, result.getOutput() });
                     mergeCommitID = null;
                     this.state = CryoPRState.PRISTINE;
+                    for (int revIndex = this.dependencies.size() - 1; revIndex >= 0; revIndex--) {
+                        final BisectablePullRequest dependency = this.dependencies.get(revIndex);
+                        if (!dependency.reverse()) {
+                            // TODO: make it better
+                            throw new RuntimeException("[CRYO] Failed to clean up PR[" + this.getPullRequest().getURL()
+                                    + "], failed dependency[" + dependency.getPullRequest().getURL()
+                                    + "], repository is in corrupted state. Exploding!");
+                        }
+                    }
                     return true;
                 case FAILURE:
                 default:
                     // NOTE: is this even possible?
+                    // TODO: add another state?
                     mergeCommitID = null;
                     this.state = CryoPRState.CORRUPTED;
                     result.reportError("Revert pull request: "+getId());
@@ -146,25 +233,40 @@ public class BisectablePullRequest {
     }
 
     public void markGood() {
-        this.state = CryoPRState.GOOD;
+        //this.state = CryoPRState.GOOD;
+        propagateState(CryoPRState.GOOD, true);
     }
 
     public void markNoMerge() {
-        this.state = CryoPRState.NO_MERGE;
+        _markNoMerge(false);
     }
 
+    protected void _markNoMerge(final boolean limited) {
+        propagateState(CryoPRState.NO_MERGE, !limited);
+    }
     public void markFailed() {
-        this.state = CryoPRState.FAILED;
+        propagateState(CryoPRState.FAILED, true);
+        //this.state = CryoPRState.FAILED;
     }
 
     public void markCorrupted() {
-        this.state = CryoPRState.CORRUPTED;
+        propagateState(CryoPRState.CORRUPTED, true);
     }
 
     public void markExclude() {
-        this.state = CryoPRState.EXCLUDE;
+        propagateState(CryoPRState.EXCLUDE, true);
     }
 
+    protected void propagateState(final CryoPRState state, boolean goUp) {
+        if(goUp && this.dependant != null) {
+            this.dependant.propagateState(state, goUp);
+        } else {
+            this.state = state;
+            for(int index=this.dependencies.size()-1;index>=0;index--) {
+                this.dependencies.get(index).propagateState(state, false);
+            }
+        }
+    }
     public static enum CryoPRState {
         /**
          * Initial state
@@ -196,9 +298,23 @@ public class BisectablePullRequest {
         CORRUPTED;
     }
 
-    @Override
     public String toString() {
-        return "BisectablePullRequest [pullRequest=" + pullRequest.getId() + ", state=" + state + "]";
+        StringBuilder buffer = new StringBuilder(50);
+        _toString(buffer, "", "");
+        return buffer.toString();
+    }
+    protected void _toString(StringBuilder buffer, String prefix, String childPrefix) {
+        buffer.append(prefix);
+        buffer.append("BisectablePullRequest ["+ pullRequest.getURL() + ", title='"+this.pullRequest.getTitle()+"'"+", state=" + state + "]");
+        buffer.append("\n");
+        for(Iterator<BisectablePullRequest> it = this.dependencies.iterator();it.hasNext();) {
+            BisectablePullRequest dep = it.next();
+            if(it.hasNext()) {
+                dep._toString(buffer, childPrefix + "├── ", childPrefix + "│   ");
+            } else {
+                dep._toString(buffer, childPrefix + "└── ", childPrefix + "    ");
+            }
+        }
     }
 
 }

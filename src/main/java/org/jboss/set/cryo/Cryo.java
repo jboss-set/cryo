@@ -26,10 +26,14 @@ import java.net.MalformedURLException;
 import java.net.URL;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Iterator;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.ServiceLoader;
 import java.util.Set;
 import java.util.logging.Level;
+import java.util.stream.Collectors;
 
 import org.jboss.set.aphrodite.Aphrodite;
 import org.jboss.set.aphrodite.domain.PullRequest;
@@ -172,7 +176,7 @@ public class Cryo {
         final OperationResult result = this.operationCenter.cleanUpRepository();
         switch (result.getOutcome()) {
             case SUCCESS:
-                Main.log(Level.INFO, "Cleanup of repository: {0}", result.getOutput());
+                Main.log(Level.INFO, "Cleanup of repository:\n{0}", result.getOutput());
                 return true;
             case FAILURE:
             default:
@@ -218,11 +222,11 @@ public class Cryo {
      *
      * @return
      */
-    protected boolean fetchPRList() {
+    protected boolean _fetchPRList() {
         this.coldStorage = new ArrayList<>();
         try {
             final Repository repository = this.aphrodite.getRepository(this.repositoryURL);
-            List<PullRequest> allPullRequests = aphrodite.getPullRequestsByState(repository, PullRequestState.OPEN);
+            final List<PullRequest> allPullRequests = aphrodite.getPullRequestsByState(repository, PullRequestState.OPEN);
             for (PullRequest pullRequest : allPullRequests) {
                 //INFO: we fetch all PRs for branch, regardless of
                 if (pullRequest.getCodebase().getName().equalsIgnoreCase(this.branch)) {
@@ -240,41 +244,84 @@ public class Cryo {
             Main.log(Level.SEVERE, "Failed to fetch repository '"+this.repositoryURL+"' due to:", e);
         }
         return false;
-        // try {
-        // //Build referencable set. Once we have those, we can take care of deps
-        // final Map<String, BisectablePullRequest> temporaryColdStaorage = new TreeMap<>();
-        // final Map<String, BisectablePullRequest> temporaryDependenciesColdStaorage = new TreeMap<>();
-        // final Repository repository = this.aphrodite.getRepository(this.repositoryURL);
-        // List<PullRequest> allPullRequests = aphrodite.getPullRequestsByState(repository, PullRequestState.OPEN);
-        // for (PullRequest pullRequest : allPullRequests) {
-        // if (pullRequest.getCodebase().getName().equalsIgnoreCase(this.branch)) {
-        // //NOTE: ONly one level
-        // final BisectablePullRequest bisectablePullRequest = new BisectablePullRequest(pullRequest);
-        // if(pullRequest.hasDependencies()) {
-        // temporaryDependenciesColdStaorage.put(bisectablePullRequest.getPullRequest().getId(),bisectablePullRequest);
-        // } else {
-        // temporaryColdStaorage.put(bisectablePullRequest.getPullRequest().getId(),bisectablePullRequest);
-        // }
-        // }
-        // }
-        //
-        // //At this point we have list of all, we need to vet deps, add them and check if any are left( not in
-        // temporaryColdStaorage)
-        // while (temporaryColdStaorage.size() != 0) {
-        // for (String pullRequestNumber : temporaryColdStaorage.keySet()) {
-        // Bse
-        // }
-        // }
-        // //TODO: mark PR as CORRUPT if deps are not in stream
-        // //TODO: organize PRs deps first, followed by top PR vs only top PRs in cold storage?
-        // //TODO: multilayer deps?
-        // return true;
-        // } catch (NotFoundException e) {
-        // Main.log(Level.SEVERE, "Failed to fetch repository '%s' due to '%s'", new Object[] { this.repositoryURL, e });
-        // }
-        // return false;
     }
 
+    /**
+     * Fetch PR list from remote repository, create local data structures and prepare to rumble!!
+     *
+     * @return
+     */
+    protected boolean fetchPRList() {
+        this.coldStorage = new ArrayList<>();
+        try {
+            final Repository repository = this.aphrodite.getRepository(this.repositoryURL);
+            final List<PullRequest> allPullRequests = aphrodite.getPullRequestsByState(repository, PullRequestState.OPEN);
+            if(this.invert) {
+                Collections.reverse(allPullRequests);
+            }
+            //final Map<URL,BisectablePullRequest> referencableStorage = new TreeMap<URL, BisectablePullRequest>((o1, o2) -> o1.toString().compareTo(o2.toString()));
+            final Map<URL,BisectablePullRequest> referencableStorage = new LinkedHashMap<URL, BisectablePullRequest>(allPullRequests.size());
+
+            final List<BisectablePullRequest> tmpStorage = new ArrayList<>();
+            for (PullRequest pullRequest : allPullRequests) {
+                if (pullRequest.getCodebase().getName().equalsIgnoreCase(this.branch)) {
+                    final BisectablePullRequest req = new BisectablePullRequest(this.operationCenter,pullRequest);
+                    referencableStorage.put(pullRequest.getURL(),req);
+                    tmpStorage.add(req);
+                }
+            }
+//
+//            int index= 0;
+//            for(Iterator<BisectablePullRequest> it = referencableStorage.values().iterator();it.hasNext();) {
+//                BisectablePullRequest o1 = tmpStorage.get(index++);
+//                BisectablePullRequest o2 = it.next();
+//                System.err.println(o1.getId()+"=="+o2.getId());
+//            }
+
+            //INFO: after this we should have a tree built, after we need to vet into mergable structure
+            // and store in #coldStorage
+            for(URL u:referencableStorage.keySet()) {
+                final BisectablePullRequest currentToScrutiny = referencableStorage.get(u);
+                if(!currentToScrutiny.hasDefinedDependencies()) {
+                    continue;
+                }
+                //NOTE: else we have deps and lets try to collect them from set
+                final List<URL> deps = currentToScrutiny.getPullRequest().findDependencyPullRequestsURL();
+                Main.log(Level.FINE, "Searching for dependencies for PR[{0}], list:\n{1}", new Object[] {u,deps.stream()
+                        .map(str->str.toString())
+                        .collect(Collectors.joining("\n --- "))});
+                for(URL dependencyURL:deps) {
+                    if(referencableStorage.containsKey(dependencyURL)) {
+                        //TODO: handle failure
+                        currentToScrutiny.addDependency(referencableStorage.get(dependencyURL));
+                    } else {
+                        //TODO: add "NON_EXISTING" BisectablePullRequest and add dep for log transparency
+                        Main.log(Level.WARNING, "Failed to find dependency for PR[{0}], dependency[{1}]", new Object[] {u,dependencyURL});
+                        currentToScrutiny.markCorrupted();
+                    }
+                }
+            }
+
+            while(referencableStorage.size() >0) {
+                for(Iterator<URL> it =  referencableStorage.keySet().iterator();it.hasNext() ;) {
+                    final URL u = it.next();
+                    final BisectablePullRequest bisectablePullRequest = referencableStorage.get(u);
+                    if(bisectablePullRequest.hasDependant()) {
+                        //INFO: ignore and remove. depds are going to be merged from dependant
+                    } else {
+                        coldStorage.add(bisectablePullRequest);
+                    }
+                    it.remove();
+                    //referencableStorage.remove(u);
+                    continue;
+                }
+            }
+            return true;
+        } catch (NotFoundException | MalformedURLException e) {
+            Main.log(Level.SEVERE, "Failed to fetch repository '" + this.repositoryURL + "' due to:", e);
+        }
+        return false;
+    }
     /**
      * Mark PRs as excluded if they are in exclude set. This will take care of deps as well - somehow
      */
@@ -372,7 +419,8 @@ public class Cryo {
     protected void performBisect(final MergeResult mergeResult) {
         // Now this is going to be slightly nasty...
         // INFO: we dont need to guard against going back too far as we act only on MergeResult
-        Main.log(Level.INFO, "[BISECT] Starting bisect on XXXX");
+        Main.log(Level.INFO, "[BISECT] Starting bisect on:");
+        dump(Level.INFO,mergeResult.getMergeList().toArray(new BisectablePullRequest[1]));
         // manual bisec based on PRs. PR can have more than one commit. It is easier to do this on array.
         final BisectablePullRequest[] danceFloor = mergeResult.getMergeList()
                 .toArray(new BisectablePullRequest[mergeResult.getMergeList().size()]);
@@ -391,18 +439,23 @@ public class Cryo {
                 R = M - 1;
                 firstBad = M;
             }
+            dump(Level.FINE,danceFloor);
         }
         // retain only good PRs, rest will follow in another batch of merge.
         // NOTE: check if this is correct
         //TODO: do we need to check on this reverse?
-        if(!danceFloor[firstBad].reverse()) {
+        Main.log(Level.INFO, "[BISECT] found first bad[{0}]", new Object[] {danceFloor[firstBad]});
+        //INFO: PRISITINE, it might have been rewind in last adjust
+        if(danceFloor[firstBad].getState() !=CryoPRState.PRISTINE && !danceFloor[firstBad].reverse()) {
             //NOTE: this should not happen unless there is something serious going on, blow up now.
             throw new RuntimeException("[CRYO] [BISECT] Failed to reverse first bad["+danceFloor[firstBad].getPullRequest().getURL()+"], repository is in corrupted state. Exploding!");
         }
         danceFloor[firstBad].markFailed();
+
         for (int i = 0; i < firstBad; i++) {
             danceFloor[i].markGood();
         }
+
         return;
     }
 
@@ -465,12 +518,16 @@ public class Cryo {
     }
 
     protected void reportCurrentStateOfColdStorage() {
-        for (BisectablePullRequest bisectablePullRequest : this.coldStorage) {
-            Main.log(Level.INFO, "Pull Request:[{0}] Status[{1}] Desc:[{2}]",
-                    new Object[] { bisectablePullRequest.getPullRequest().getURL(),
-                            bisectablePullRequest.getState(),
-                            bisectablePullRequest.getPullRequest().getTitle() });
+        dump(Level.INFO, this.coldStorage.toArray(new BisectablePullRequest[this.coldStorage.size()]));
+    }
+
+    protected void dump(final Level level, final BisectablePullRequest... arr) {
+        final StringBuilder stringBuilder = new StringBuilder();
+        stringBuilder.append("\n");
+        for (BisectablePullRequest bisectablePullRequest : arr) {
+            stringBuilder.append(bisectablePullRequest.toString());
         }
+        Main.log(level, stringBuilder.toString());
     }
 
     protected long getGoodPullRequestCount() {
