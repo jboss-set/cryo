@@ -22,6 +22,7 @@
 package org.jboss.set.cryo.staging.directory;
 
 import java.io.File;
+import java.io.PrintStream;
 import java.nio.channels.IllegalSelectorException;
 import java.util.Arrays;
 
@@ -102,17 +103,17 @@ public class DirectoryOrientedOperationCenter implements OperationCenter {
     }
 
     @Override
-    public OperationResult cleanUpRepository() {
+    public OperationResult cleanUpRepository(final PrintStream out) {
         final ProcessBuilder cleanRepository = new ProcessBuilder(COMMAND_MVN_CLEAN);
         cleanRepository.directory(repositoryLocation);
-        return new ExecuteProcess(cleanRepository).getProcessResult();
+        return new ExecuteProcess(out,cleanRepository).getProcessResult();
     }
 
     @Override
-    public OperationResult buildAndRunTestsuite() {
+    public OperationResult buildAndRunTestsuite(final PrintStream out) {
         final ProcessBuilder buildRepository = new ProcessBuilder(COMMAND_MVN_INSTALL_AND_TEST);
         buildRepository.directory(repositoryLocation);
-        return new ExecuteProcess(buildRepository).getProcessResult();
+        return new ExecuteProcess(out,buildRepository).getProcessResult();
     }
 
     @Override

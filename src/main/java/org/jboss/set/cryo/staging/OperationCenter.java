@@ -21,6 +21,8 @@
  */
 package org.jboss.set.cryo.staging;
 
+import java.io.PrintStream;
+
 /**
  * Provider interface that hides how requests are carried out.
  * @author baranowb
@@ -30,8 +32,8 @@ public interface OperationCenter {
     OperationCenter initializeOperationCenter(Object[] inserts);
 
     OperationResult abortMerge();
-    OperationResult buildAndRunTestsuite();
-    OperationResult cleanUpRepository();
+    OperationResult buildAndRunTestsuite(final PrintStream out);
+    OperationResult cleanUpRepository(final PrintStream out);
     OperationResult createNewBranch(final String newBranchName);
     OperationResult determineCurrentBranch();
     OperationResult determineRepositoryURL();

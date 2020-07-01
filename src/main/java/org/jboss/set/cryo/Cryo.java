@@ -173,7 +173,8 @@ public class Cryo {
      */
     protected boolean cleanUpRepository() {
         // Just in case.
-        final OperationResult result = this.operationCenter.cleanUpRepository();
+        Main.log(Level.INFO, "Cleaning up repository.");
+        final OperationResult result = this.operationCenter.cleanUpRepository(System.out);
         switch (result.getOutcome()) {
             case SUCCESS:
                 Main.log(Level.INFO, "Cleanup of repository:\n{0}", result.getOutput());
@@ -186,7 +187,7 @@ public class Cryo {
     }
 
     protected boolean buildAndRunTestsuite() {
-        final OperationResult result = this.operationCenter.buildAndRunTestsuite();
+        final OperationResult result = this.operationCenter.buildAndRunTestsuite(System.out);
         switch (result.getOutcome()) {
             case SUCCESS:
                 Main.log(Level.INFO, "[SUCCESS] Build and test: {0}", result.getOutput());

@@ -25,29 +25,51 @@ import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.io.PrintStream;
 import java.util.stream.Collectors;
 
+import org.apache.commons.io.IOUtils;
 import org.jboss.set.cryo.staging.OperationResult;
 
 public class ExecuteProcess {
 
     protected final ProcessBuilder processBuilder;
+    protected final PrintStream out;
+    public ExecuteProcess(PrintStream out, ProcessBuilder processBuilder) {
+        super();
+        this.processBuilder = processBuilder;
+        this.out = out;
+    }
 
     public ExecuteProcess(ProcessBuilder processBuilder) {
         super();
         this.processBuilder = processBuilder;
+        this.out = null;
     }
-
     public OperationResult getProcessResult() {
         Process process = null;
         try {
             process = processBuilder.start();
-            final int result = process.waitFor();
-            final String output = readOutput(process);
+            String output = "<EMPTY>";
+            int result;
+            if(out != null) {
+                //INFO: long running command, we dont care about output; Just dump it;
+                while(process.isAlive()) {
+                    final InputStream inputStream = process.getInputStream();
+                    while(inputStream.available() > 0) {
+                        IOUtils.copy(inputStream, this.out);
+                    }
+                }
+                result = process.waitFor();
+            } else {
+            result = process.waitFor();
+            output = readOutput(process);
+            }
             return result == 0 ? new OperationResult(processBuilder, OperationResult.Outcome.SUCCESS, output) : new OperationResult(processBuilder, OperationResult.Outcome.FAILURE, output);
         } catch( Exception e) {
             if(process != null) {
 //                final int result = process.exitValue();
+                //TODO: this might not be optimal. as output might be genormous.
                 final String output = readOutput(process);
                 return new OperationResult(processBuilder, OperationResult.Outcome.FAILURE, output,e);
             } else {
