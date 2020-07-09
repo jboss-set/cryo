@@ -31,45 +31,45 @@ import org.jboss.set.cryo.staging.OperationCenter;
 import org.jboss.set.cryo.staging.OperationResult;
 
 public class DirectoryOrientedOperationCenter implements OperationCenter {
-    public static final String[] COMMAND_GIT_GET_URL = new String[] {"git", "remote", "get-url", "origin" };
-    public static final String[] COMMAND_GIT_GET_CURRENT_BRANCH = new String[] { "git", "rev-parse", "--abbrev-ref", "HEAD" };
-    public static final String[] COMMAND_MVN_CLEAN = new String[] { "mvn", "clean", "-DallTests" };
-    public static final String[] COMMAND_MVN_INSTALL_AND_TEST = new String[] { "mvn", "install", "-fae", "-DallTests" };
-    public static final String[] COMMAND_GIT_CHECKOUT_NEW_BRANCH = new String[] { "git", "checkout", "-b" };
-    public static final String[] COMMAND_GIT_PUSH = new String[] { "git", "push", "origin" };
-    public static final String[] COMMAND_GIT_READ_CURRENT_COMMIT_HEAD = new String[] { "git", "rev-parse", "HEAD" };
+    protected static final String[] COMMAND_GIT_GET_URL = new String[] {"git", "remote", "get-url", "origin" };
+    protected static final String[] COMMAND_GIT_GET_CURRENT_BRANCH = new String[] { "git", "rev-parse", "--abbrev-ref", "HEAD" };
+    protected static final String[] COMMAND_MVN_CLEAN = new String[] { "mvn", "clean", "-DallTests" };
+    protected static final String[] COMMAND_MVN_INSTALL_AND_TEST = new String[] { "mvn", "install", "-fae", "-DallTests" };
+    protected static final String[] COMMAND_GIT_CHECKOUT_NEW_BRANCH = new String[] { "git", "checkout", "-b" };
+    protected static final String[] COMMAND_GIT_PUSH = new String[] { "git", "push", "origin" };
+    protected static final String[] COMMAND_GIT_READ_CURRENT_COMMIT_HEAD = new String[] { "git", "rev-parse", "HEAD" };
     //public static final String[] COMMAND_GIT_MERGE_ABORT = new String[] { "git", "merge", "--abort" };
-    public static final String[] COMMAND_GIT_MERGE_ABORT = new String[] { "git", "reset", "--merge" };
-    public static final String[] COMMAND_GIT_RESET_TO = new String[] { "git", "reset", "--hard" };
-    public static String[] COMMAND_GIT_CHECKOUT_NEW_BRANCH(final String branchName) {
+    protected static final String[] COMMAND_GIT_MERGE_ABORT = new String[] { "git", "reset", "--merge" };
+    protected static final String[] COMMAND_GIT_RESET_TO = new String[] { "git", "reset", "--hard" };
+    protected static String[] COMMAND_GIT_CHECKOUT_NEW_BRANCH(final String branchName) {
         final String[] cmd = Arrays.copyOf(COMMAND_GIT_CHECKOUT_NEW_BRANCH, COMMAND_GIT_CHECKOUT_NEW_BRANCH.length + 1);
         cmd[cmd.length - 1] = branchName;
         return cmd;
     }
 
-    public static String[] COMMAND_GIT_PUSH(final String branch) {
+    protected static String[] COMMAND_GIT_PUSH(final String branch) {
         final String[] cmd = Arrays.copyOf(COMMAND_GIT_PUSH, COMMAND_GIT_PUSH.length + 1);
         cmd[cmd.length - 1] = branch;
         return cmd;
     }
 
-    public static String[] COMMAND_MERGE_PR(final String prNumber) {
-        return new String[] { "merge.sh", "origin", prNumber };
+    protected static String[] COMMAND_MERGE_PR(final String prNumber) {
+        return new String[] { "pr-merge", "origin", prNumber };
     }
 
-    public static String[] COMMAND_GIT_RESET_TO_PREVIOUS(final String commitHash) {
+    protected static String[] COMMAND_GIT_RESET_TO_PREVIOUS(final String commitHash) {
         final String[] cmd = Arrays.copyOf(COMMAND_GIT_RESET_TO, COMMAND_GIT_RESET_TO.length + 1);
         cmd[cmd.length - 1] = commitHash + "^";
         return cmd;
     }
 
-    public static String[] COMMAND_GIT_RESET_TO_POINT(final String commitHash) {
+    protected static String[] COMMAND_GIT_RESET_TO_POINT(final String commitHash) {
         final String[] cmd = Arrays.copyOf(COMMAND_GIT_RESET_TO, COMMAND_GIT_RESET_TO.length + 1);
         cmd[cmd.length - 1] = commitHash;
         return cmd;
     }
-    private File repositoryLocation;
-    private void vetOperationRoom() {
+    protected File repositoryLocation;
+    protected void vetOperationRoom() {
         if(repositoryLocation == null) {
             throw new IllegalSelectorException();
         }
@@ -78,7 +78,7 @@ public class DirectoryOrientedOperationCenter implements OperationCenter {
     public DirectoryOrientedOperationCenter() {
         //NO op constructor for services SPI
     }
-    private DirectoryOrientedOperationCenter(final File operationRoom) {
+    protected DirectoryOrientedOperationCenter(final File operationRoom) {
         this.repositoryLocation = operationRoom;
     }
 

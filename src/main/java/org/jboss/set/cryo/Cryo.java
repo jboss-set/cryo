@@ -61,7 +61,7 @@ public class Cryo {
 
     private static final SimpleContainer simpleContainer = (SimpleContainer) SimpleContainer.instance();
 
-    private OperationCenter operationCenter;
+    protected OperationCenter operationCenter;
     /**
      * Physical location of repository to work on - most likely created with git clone.
      */
@@ -84,15 +84,17 @@ public class Cryo {
     protected final boolean invert;
     protected final Set<String> excludeSet;
     protected final String suffix;
+    protected String opsCoreHint;
     // TODO: redo with more sophisticated state machine
     protected boolean weDone = false;
 
-    public Cryo(final File directory, final boolean dryRun, final boolean invert, Set<String> excludeSet, String suffix) {
+    public Cryo(final File directory, final boolean dryRun, final boolean invert, Set<String> excludeSet, String suffix, String opsCore) {
         this.repositoryLocation = directory;
         this.dryRun = dryRun;
         this.invert = invert;
         this.excludeSet = excludeSet;
         this.suffix = suffix;
+        this.opsCoreHint = opsCore;
     }
 
     /**
@@ -100,10 +102,21 @@ public class Cryo {
      *
      */
     protected boolean init() {
-        ServiceLoader<OperationCenter> opsCore
-        = ServiceLoader.load(OperationCenter.class);
-        if(opsCore.iterator().hasNext()) {
-            this.operationCenter = opsCore.iterator().next().initializeOperationCenter(new Object[] {this.repositoryLocation});
+        ServiceLoader<OperationCenter> opsCore = ServiceLoader.load(OperationCenter.class);
+        final Iterator<OperationCenter> it = opsCore.iterator();
+        if(it.hasNext()) {
+            while (it.hasNext()) {
+                if (this.operationCenter == null) {
+                    this.operationCenter = it.next();
+                } else {
+                    final OperationCenter tmpOps = it.next();
+                    if(tmpOps.getClass().getName().endsWith(this.opsCoreHint)) {
+                        this.operationCenter = tmpOps;
+                        break;
+                    }
+                }
+            }
+            this.operationCenter = this.operationCenter.initializeOperationCenter(new Object[] {this.repositoryLocation});
         } else {
             Main.log(Level.SEVERE, "Failed to create OperationCenter...");
             return false;
@@ -138,7 +151,21 @@ public class Cryo {
             case SUCCESS:
                 Main.log(Level.INFO, "[SUCCESS] Repository URL: {0}", result.getOutput());
                 try {
-                    this.repositoryURL = new URL(result.getOutput());
+                    //INFO in case of git:// we have to switch to https kind
+                    String tmpURL = result.getOutput();
+                    if(tmpURL.startsWith("git@")) {
+                        final StringBuilder ulrStringBuilder = new StringBuilder();
+                        ulrStringBuilder.append("https://");
+                        ulrStringBuilder.append(tmpURL.substring(4,tmpURL.indexOf(":")));
+                        if(tmpURL.endsWith(".git")) {
+                            ulrStringBuilder.append("/").append(tmpURL.substring(tmpURL.indexOf(":")+1,tmpURL.indexOf(".git")));
+                        } else {
+                            ulrStringBuilder.append("/").append(tmpURL.substring(tmpURL.indexOf(":")+1,tmpURL.length()));
+                        }
+                        tmpURL = ulrStringBuilder.toString();
+                        Main.log(Level.INFO, "[SUCCESS] Transformed Repository URL: {0}", tmpURL);
+                    }
+                    this.repositoryURL = new URL(tmpURL);
                 } catch (MalformedURLException e) {
                     Main.log(Level.SEVERE, "Failed to parse repository URL!", e);
                     return false;
@@ -524,6 +551,7 @@ public class Cryo {
 
     protected void dump(final Level level, final BisectablePullRequest... arr) {
         final StringBuilder stringBuilder = new StringBuilder();
+        stringBuilder.append("Cold storage:");
         stringBuilder.append("\n");
         for (BisectablePullRequest bisectablePullRequest : arr) {
             stringBuilder.append(bisectablePullRequest.toString());

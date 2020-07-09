@@ -42,6 +42,7 @@ public class Main {
     private static final String[] ARG_INVERT = new String[] {"-i", "--invert"};
     private static final String[] ARG_EXCLUDE = new String[] {"-e","--exclude"};
     private static final String[] ARG_SUFIX = new String[] {"-s","--sufix"};
+    private static final String[] ARG_OPS = new String[] {"-o","--ops"};
     private static String CONVERT_TO_ARG_ID(final String id) {
         return id.replaceFirst("--", "").replaceAll("-", "_");
     }
@@ -70,6 +71,7 @@ public class Main {
         .help("Invert order of PRs. By default aphrodite/github return new PRs first.");
         parser.addArgument(ARG_EXCLUDE).nargs(1).required(false).help("Comma separated list of PR IDs(integer) that will be excluded from reactor.");
         parser.addArgument(ARG_SUFIX).nargs(1).required(false).setDefault(".future").help("Sufix to use, default is '.future'.");
+        parser.addArgument(ARG_OPS).nargs(1).required(false).setDefault("DirectoryOrientedOperationCenter").help("Class of ops source. If not present first service available will be used");
 
         try {
             Namespace ns = parser.parseArgs(args);
@@ -82,7 +84,8 @@ public class Main {
                 excludeSet = ImmutableSet.copyOf(new ArrayList<String>());
             }
             final String suffix = ns.getString(CONVERT_TO_ARG_ID(ARG_SUFIX[1])).replace("[", "").replace("]", "");
-            final Cryo freezerProgram = new Cryo(directory,ns.getBoolean(CONVERT_TO_ARG_ID(ARG_DRYRUN[1])), ns.getBoolean(CONVERT_TO_ARG_ID(ARG_INVERT[1])),excludeSet, suffix);
+            final String opsCore = ns.getString(CONVERT_TO_ARG_ID(ARG_OPS[1])).replace("[", "").replace("]", "");
+            final Cryo freezerProgram = new Cryo(directory,ns.getBoolean(CONVERT_TO_ARG_ID(ARG_DRYRUN[1])), ns.getBoolean(CONVERT_TO_ARG_ID(ARG_INVERT[1])),excludeSet, suffix,opsCore);
             freezerProgram.createStorage();
         } catch (ArgumentParserException e) {
             parser.handleError(e);
