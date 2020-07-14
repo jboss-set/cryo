@@ -59,7 +59,6 @@ public class Main {
 //    }
 
     public static void main(String[] args) throws Exception {
-
           // NOTE: does not seem we need args? branchName, URL etc can be retrieved from repo.
         ArgumentParser parser = ArgumentParsers.newArgumentParser("cryo");
         parser.description("Hadny dandy contraption to create some branch. Clone clean repo, check PRs you want. Do a dry run for fun and safety(push might be manual step after verification).");

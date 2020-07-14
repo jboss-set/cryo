@@ -291,11 +291,19 @@ public class Cryo {
             final Map<URL,BisectablePullRequest> referencableStorage = new LinkedHashMap<URL, BisectablePullRequest>(allPullRequests.size());
 
             final List<BisectablePullRequest> tmpStorage = new ArrayList<>();
+            //Main.log(Level.CONFIG, "Fetching PR list, desired codebase[{0}]", new Object[] {this.branch});
+            Main.log(Level.INFO, "Fetching PR list, desired codebase[{0}]", new Object[] {this.branch});
             for (PullRequest pullRequest : allPullRequests) {
                 if (pullRequest.getCodebase().getName().equalsIgnoreCase(this.branch)) {
                     final BisectablePullRequest req = new BisectablePullRequest(this.operationCenter,pullRequest);
+                    //Main.log(Level.CONFIG, "Retaining Pull Request: {0}", new Object[] {req});
+                    Main.log(Level.INFO, "Retaining Pull Request: {0}", new Object[] {req});
                     referencableStorage.put(pullRequest.getURL(),req);
                     tmpStorage.add(req);
+                } else {
+                    final BisectablePullRequest req = new BisectablePullRequest(this.operationCenter,pullRequest);
+                    //Main.log(Level.CONFIG, "Purging Pull Request: {0}", new Object[] {req});
+                    Main.log(Level.INFO, "Purging Pull Request: {0}", new Object[] {req});
                 }
             }
 //
@@ -315,9 +323,10 @@ public class Cryo {
                 }
                 //NOTE: else we have deps and lets try to collect them from set
                 final List<URL> deps = currentToScrutiny.getPullRequest().findDependencyPullRequestsURL();
-                Main.log(Level.FINE, "Searching for dependencies for PR[{0}], list:\n{1}", new Object[] {u,deps.stream()
+                //Main.log(Level.FINE, "Searching for dependencies for PR[{0}], list:\n{1}", new Object[] {u,deps.stream()
+                Main.log(Level.INFO, "Searching for dependencies for PR[{0}], list:\n{1}", new Object[] {u,deps.stream()
                         .map(str->str.toString())
-                        .collect(Collectors.joining("\n --- "))});
+                        .collect(Collectors.joining("\n"))});
                 for(URL dependencyURL:deps) {
                     if(referencableStorage.containsKey(dependencyURL)) {
                         //TODO: handle failure
@@ -448,8 +457,8 @@ public class Cryo {
         // Now this is going to be slightly nasty...
         // INFO: we dont need to guard against going back too far as we act only on MergeResult
         Main.log(Level.INFO, "[BISECT] Starting bisect on:");
-        dump(Level.INFO,mergeResult.getMergeList().toArray(new BisectablePullRequest[1]));
-        // manual bisec based on PRs. PR can have more than one commit. It is easier to do this on array.
+        dump(Level.INFO,"[BISECT] Starting state:",mergeResult.getMergeList().toArray(new BisectablePullRequest[mergeResult.getMergeList().size()]));
+        // manual bisect based on PRs. PR can have more than one commit. It is easier to do this on array.
         final BisectablePullRequest[] danceFloor = mergeResult.getMergeList()
                 .toArray(new BisectablePullRequest[mergeResult.getMergeList().size()]);
         int L = 0, R = danceFloor.length - 1;
@@ -467,11 +476,12 @@ public class Cryo {
                 R = M - 1;
                 firstBad = M;
             }
-            dump(Level.FINE,danceFloor);
+            dump(Level.INFO,"[BISECT] State:",danceFloor);
         }
         // retain only good PRs, rest will follow in another batch of merge.
         // NOTE: check if this is correct
         //TODO: do we need to check on this reverse?
+        Main.log(Level.INFO, "[BISECT] found first bad[{0}]", new Object[] {firstBad});
         Main.log(Level.INFO, "[BISECT] found first bad[{0}]", new Object[] {danceFloor[firstBad]});
         //INFO: PRISITINE, it might have been rewind in last adjust
         if(danceFloor[firstBad].getState() !=CryoPRState.PRISTINE && !danceFloor[firstBad].reverse()) {
@@ -535,7 +545,8 @@ public class Cryo {
             final OperationResult result = this.operationCenter.pushCurrentBranch(this.futureBranch);
             switch (result.getOutcome()) {
                 case SUCCESS:
-                    Main.log(Level.FINE, "[BISECT] [SUCCESS] Push future branch: {0}", result.getOutput());
+                    //Main.log(Level.FINE, "[BISECT] [SUCCESS] Push future branch: {0}", result.getOutput());
+                    Main.log(Level.INFO, "[BISECT] [SUCCESS] Push future branch: {0}", result.getOutput());
                     break;
                 case FAILURE:
                 default:
@@ -546,12 +557,12 @@ public class Cryo {
     }
 
     protected void reportCurrentStateOfColdStorage() {
-        dump(Level.INFO, this.coldStorage.toArray(new BisectablePullRequest[this.coldStorage.size()]));
+        dump(Level.INFO,"Cold storage:", this.coldStorage.toArray(new BisectablePullRequest[this.coldStorage.size()]));
     }
 
-    protected void dump(final Level level, final BisectablePullRequest... arr) {
+    protected void dump(final Level level,final String prefix,  final BisectablePullRequest... arr) {
         final StringBuilder stringBuilder = new StringBuilder();
-        stringBuilder.append("Cold storage:");
+        stringBuilder.append(prefix);
         stringBuilder.append("\n");
         for (BisectablePullRequest bisectablePullRequest : arr) {
             stringBuilder.append(bisectablePullRequest.toString());
