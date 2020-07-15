@@ -22,11 +22,16 @@
 package org.jboss.set.cryo;
 
 import java.io.File;
+import java.time.Duration;
+import java.time.LocalTime;
+import java.time.temporal.Temporal;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Set;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+
+import org.apache.commons.lang3.time.DurationFormatUtils;
 
 import com.google.common.collect.ImmutableSet;
 
@@ -46,7 +51,8 @@ public class Main {
     private static String CONVERT_TO_ARG_ID(final String id) {
         return id.replaceFirst("--", "").replaceAll("-", "_");
     }
-    private static Logger LOGGER = Logger.getLogger(Main.class.getPackage().getName());
+    private static final Logger LOGGER = Logger.getLogger(Main.class.getPackage().getName());
+    private static final TimeTracker TIME_TRACKER = new TimeTracker();
 //    static {
 //        try {
 //            //TODO fix this or run with: -Djava.util.logging.SimpleFormatter.format='%1$tY-%1$tm-%1$td %1$tH:%1$tM:%1$tS %4$s %2$s %5$s%6$s%n'
@@ -59,6 +65,7 @@ public class Main {
 //    }
 
     public static void main(String[] args) throws Exception {
+        TIME_TRACKER.start();
           // NOTE: does not seem we need args? branchName, URL etc can be retrieved from repo.
         ArgumentParser parser = ArgumentParsers.newArgumentParser("cryo");
         parser.description("Hadny dandy contraption to create some branch. Clone clean repo, check PRs you want. Do a dry run for fun and safety(push might be manual step after verification).");
@@ -89,22 +96,56 @@ public class Main {
         } catch (ArgumentParserException e) {
             parser.handleError(e);
             System.exit(1);
+        } finally {
+            TIME_TRACKER.stop();
         }
     }
 
     public static void log(final Level level, final String msg) {
-        LOGGER.log(level, "[CRYO]: " + msg);
+        LOGGER.log(level, "[CRYO]["+TIME_TRACKER.interim()+"]: " + msg);
     }
 
     public static void log(final Level level, final String msg, final Object param) {
-        LOGGER.log(level, "[CRYO]: " + msg, param);
+        LOGGER.log(level, "[CRYO]["+TIME_TRACKER.interim()+"]: " + msg, param);
     }
 
     public static void log(final Level level, final String msg, final Object[] params) {
-        LOGGER.log(level, "[CRYO]: " + msg, params);
+        LOGGER.log(level, "[CRYO]["+TIME_TRACKER.interim()+"]: " + msg, params);
     }
 
     public static void log(final String msg, final Throwable t) {
-        LOGGER.log(Level.SEVERE, "[CRYO]: " + msg, t);
+        LOGGER.log(Level.SEVERE, "[CRYO]["+TIME_TRACKER.interim()+"]: " + msg, t);
+    }
+
+    private static class TimeTracker {
+        private LocalTime start;
+        private LocalTime end;
+
+        public Temporal getStart() {
+            return start;
+        }
+
+        public Temporal getEnd() {
+            return end;
+        }
+
+        public void start() {
+            this.start = LocalTime.now();
+        }
+
+        public void stop() {
+            this.end = LocalTime.now();
+        }
+
+        public String interim() {
+            return DurationFormatUtils.formatDuration(Duration.between(this.start, LocalTime.now()).toMillis(), "**HH:mm:ss:SSS**", true) ;
+        }
+
+        public String total() {
+            if (this.end == null) {
+                this.stop();
+            }
+            return DurationFormatUtils.formatDuration(Duration.between(this.start, this.end).toMillis(), "**HH:mm:ss:SSS**", true) ;
+        }
     }
 }

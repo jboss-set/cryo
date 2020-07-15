@@ -84,7 +84,8 @@ public class Cryo {
     protected final boolean invert;
     protected final Set<String> excludeSet;
     protected final String suffix;
-    protected String opsCoreHint;
+    protected final String opsCoreHint;
+
     // TODO: redo with more sophisticated state machine
     protected boolean weDone = false;
 
@@ -306,13 +307,6 @@ public class Cryo {
                     Main.log(Level.INFO, "Purging Pull Request: {0}", new Object[] {req});
                 }
             }
-//
-//            int index= 0;
-//            for(Iterator<BisectablePullRequest> it = referencableStorage.values().iterator();it.hasNext();) {
-//                BisectablePullRequest o1 = tmpStorage.get(index++);
-//                BisectablePullRequest o2 = it.next();
-//                System.err.println(o1.getId()+"=="+o2.getId());
-//            }
 
             //INFO: after this we should have a tree built, after we need to vet into mergable structure
             // and store in #coldStorage
@@ -456,7 +450,7 @@ public class Cryo {
     protected void performBisect(final MergeResult mergeResult) {
         // Now this is going to be slightly nasty...
         // INFO: we dont need to guard against going back too far as we act only on MergeResult
-        Main.log(Level.INFO, "[BISECT] Starting bisect on:");
+        //Main.log(Level.INFO, "[BISECT] Starting bisect [{0}]", this.timeTracker.interim());
         dump(Level.INFO,"[BISECT] Starting state:",mergeResult.getMergeList().toArray(new BisectablePullRequest[mergeResult.getMergeList().size()]));
         // manual bisect based on PRs. PR can have more than one commit. It is easier to do this on array.
         final BisectablePullRequest[] danceFloor = mergeResult.getMergeList()
@@ -534,7 +528,7 @@ public class Cryo {
     }
 
     protected void pushFutureBranch() {
-        Main.log(Level.INFO, "[SUCCESS] Finished preparing future branch {0}, report:",this.futureBranch);
+        Main.log(Level.INFO, "[SUCCESS] Finished preparing future branch {0}, report:", this.futureBranch);
         //TODO: update when deps are in.
         reportCurrentStateOfColdStorage();
         if(this.dryRun) {
