@@ -26,9 +26,11 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.PrintStream;
+import java.util.logging.Level;
 import java.util.stream.Collectors;
 
 import org.apache.commons.io.IOUtils;
+import org.jboss.set.cryo.Main;
 import org.jboss.set.cryo.staging.OperationResult;
 
 public class ExecuteProcess {
@@ -54,10 +56,18 @@ public class ExecuteProcess {
             int result;
             if(out != null) {
                 //INFO: long running command, we dont care about output; Just dump it;
-                while(process.isAlive()) {
-                    final InputStream inputStream = process.getInputStream();
-                    while(inputStream.available() > 0) {
-                        IOUtils.copy(inputStream, this.out);
+                while (process.isAlive()) {
+                    if (Main.isFast()) {
+                        final InputStream inputStream = process.getInputStream();
+                        while (inputStream.available() > 0) {
+                            IOUtils.copy(inputStream, this.out);
+                        }
+                    } else {
+                        final BufferedReader inputStream = new BufferedReader(new InputStreamReader(process.getInputStream()));
+                        String line;
+                        while ((line = inputStream.readLine()) != null) {
+                            Main.log(Level.INFO, line);
+                        }
                     }
                 }
                 result = process.waitFor();

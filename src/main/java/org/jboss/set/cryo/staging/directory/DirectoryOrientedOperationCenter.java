@@ -31,7 +31,8 @@ import org.jboss.set.cryo.staging.OperationCenter;
 import org.jboss.set.cryo.staging.OperationResult;
 
 public class DirectoryOrientedOperationCenter implements OperationCenter {
-    protected static final String[] COMMAND_GIT_GET_URL = new String[] {"git", "remote", "get-url", "origin" };
+    //protected static final String[] COMMAND_GIT_GET_URL = new String[] {"git", "remote", "get-url", "origin" };
+    protected static final String[] COMMAND_GIT_GET_URL = new String[] {"git", "config", "--get", "remote.origin.url" };
     protected static final String[] COMMAND_GIT_GET_CURRENT_BRANCH = new String[] { "git", "rev-parse", "--abbrev-ref", "HEAD" };
     protected static final String[] COMMAND_MVN_CLEAN = new String[] { "mvn", "clean", "-DallTests" };
     protected static final String[] COMMAND_MVN_INSTALL_AND_TEST = new String[] { "mvn", "install", "-fae", "-DallTests" };

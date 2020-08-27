@@ -89,10 +89,10 @@ public class Cryo {
     // TODO: redo with more sophisticated state machine
     protected boolean weDone = false;
 
-    public Cryo(final File directory, final boolean dryRun, final boolean invert, Set<String> excludeSet, String suffix, String opsCore) {
+    public Cryo(final File directory, final boolean dryRun, final boolean invertPullRequests, Set<String> excludeSet, String suffix, String opsCore) {
         this.repositoryLocation = directory;
         this.dryRun = dryRun;
-        this.invert = invert;
+        this.invert = invertPullRequests;
         this.excludeSet = excludeSet;
         this.suffix = suffix;
         this.opsCoreHint = opsCore;
@@ -295,16 +295,21 @@ public class Cryo {
             //Main.log(Level.CONFIG, "Fetching PR list, desired codebase[{0}]", new Object[] {this.branch});
             Main.log(Level.INFO, "Fetching PR list, desired codebase[{0}]", new Object[] {this.branch});
             for (PullRequest pullRequest : allPullRequests) {
-                if (pullRequest.getCodebase().getName().equalsIgnoreCase(this.branch)) {
-                    final BisectablePullRequest req = new BisectablePullRequest(this.operationCenter,pullRequest);
-                    //Main.log(Level.CONFIG, "Retaining Pull Request: {0}", new Object[] {req});
-                    Main.log(Level.INFO, "Retaining Pull Request: {0}", new Object[] {req});
-                    referencableStorage.put(pullRequest.getURL(),req);
-                    tmpStorage.add(req);
-                } else {
-                    final BisectablePullRequest req = new BisectablePullRequest(this.operationCenter,pullRequest);
-                    //Main.log(Level.CONFIG, "Purging Pull Request: {0}", new Object[] {req});
-                    Main.log(Level.INFO, "Purging Pull Request: {0}", new Object[] {req});
+                try {
+                    if (pullRequest.getCodebase().getName().equalsIgnoreCase(this.branch)) {
+                        final BisectablePullRequest req = new BisectablePullRequest(this.operationCenter, pullRequest);
+                        // Main.log(Level.CONFIG, "Retaining Pull Request: {0}", new Object[] {req});
+                        Main.log(Level.INFO, "Retaining Pull Request: {0}", new Object[] { req });
+                        referencableStorage.put(pullRequest.getURL(), req);
+                        tmpStorage.add(req);
+                    } else {
+                        final BisectablePullRequest req = new BisectablePullRequest(this.operationCenter, pullRequest);
+                        // Main.log(Level.CONFIG, "Purging Pull Request: {0}", new Object[] {req});
+                        Main.log(Level.INFO, "Purging Pull Request: {0}", new Object[] { req });
+                    }
+                } catch (Exception e) {
+                    // TODO improve this.
+                    e.printStackTrace();
                 }
             }
 

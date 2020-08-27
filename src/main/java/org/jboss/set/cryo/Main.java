@@ -23,7 +23,7 @@ package org.jboss.set.cryo;
 
 import java.io.File;
 import java.time.Duration;
-import java.time.LocalTime;
+import java.time.LocalDateTime;
 import java.time.temporal.Temporal;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -48,11 +48,13 @@ public class Main {
     private static final String[] ARG_EXCLUDE = new String[] {"-e","--exclude"};
     private static final String[] ARG_SUFIX = new String[] {"-s","--sufix"};
     private static final String[] ARG_OPS = new String[] {"-o","--ops"};
+    private static final String[] ARG_FAST = new String[] {"-f","--fast"};
     private static String CONVERT_TO_ARG_ID(final String id) {
         return id.replaceFirst("--", "").replaceAll("-", "_");
     }
     private static final Logger LOGGER = Logger.getLogger(Main.class.getPackage().getName());
     private static final TimeTracker TIME_TRACKER = new TimeTracker();
+    private static boolean fastLogging = true;
 //    static {
 //        try {
 //            //TODO fix this or run with: -Djava.util.logging.SimpleFormatter.format='%1$tY-%1$tm-%1$td %1$tH:%1$tM:%1$tS %4$s %2$s %5$s%6$s%n'
@@ -78,6 +80,7 @@ public class Main {
         parser.addArgument(ARG_EXCLUDE).nargs(1).required(false).help("Comma separated list of PR IDs(integer) that will be excluded from reactor.");
         parser.addArgument(ARG_SUFIX).nargs(1).required(false).setDefault(".future").help("Sufix to use, default is '.future'.");
         parser.addArgument(ARG_OPS).nargs(1).required(false).setDefault("DirectoryOrientedOperationCenter").help("Class of ops source. If not present first service available will be used");
+        parser.addArgument(ARG_FAST).action(Arguments.storeTrue()).required(false).setDefault(false).help("Disable time stamp overlay and buffering for build output.");
 
         try {
             Namespace ns = parser.parseArgs(args);
@@ -91,7 +94,12 @@ public class Main {
             }
             final String suffix = ns.getString(CONVERT_TO_ARG_ID(ARG_SUFIX[1])).replace("[", "").replace("]", "");
             final String opsCore = ns.getString(CONVERT_TO_ARG_ID(ARG_OPS[1])).replace("[", "").replace("]", "");
-            final Cryo freezerProgram = new Cryo(directory,ns.getBoolean(CONVERT_TO_ARG_ID(ARG_DRYRUN[1])), ns.getBoolean(CONVERT_TO_ARG_ID(ARG_INVERT[1])),excludeSet, suffix,opsCore);
+            final boolean dryRun = ns.getBoolean(CONVERT_TO_ARG_ID(ARG_DRYRUN[1]));
+            final boolean invertPullRequests = ns.getBoolean(CONVERT_TO_ARG_ID(ARG_INVERT[1]));
+            final boolean fast = ns.getBoolean(CONVERT_TO_ARG_ID(ARG_FAST[1]));
+            //BAD...
+            Main.fastLogging = fast;
+            final Cryo freezerProgram = new Cryo(directory, dryRun, invertPullRequests, excludeSet, suffix, opsCore);
             freezerProgram.createStorage();
         } catch (ArgumentParserException e) {
             parser.handleError(e);
@@ -117,9 +125,17 @@ public class Main {
         LOGGER.log(Level.SEVERE, "[CRYO]["+TIME_TRACKER.interim()+"]: " + msg, t);
     }
 
+    /**
+     * Determine if fast logging is enabled.(lack of overlay and buffering)
+     * @return
+     */
+    public static boolean isFast() {
+        return Main.fastLogging;
+    }
+
     private static class TimeTracker {
-        private LocalTime start;
-        private LocalTime end;
+        private LocalDateTime start;
+        private LocalDateTime end;
 
         public Temporal getStart() {
             return start;
@@ -130,22 +146,22 @@ public class Main {
         }
 
         public void start() {
-            this.start = LocalTime.now();
+            this.start = LocalDateTime.now();
         }
 
         public void stop() {
-            this.end = LocalTime.now();
+            this.end = LocalDateTime.now();
         }
 
         public String interim() {
-            return DurationFormatUtils.formatDuration(Duration.between(this.start, LocalTime.now()).toMillis(), "**HH:mm:ss:SSS**", true) ;
+            return DurationFormatUtils.formatDuration(Duration.between(this.start, LocalDateTime.now()).toMillis(), "**dd:HH:mm:ss:SSS**", true);
         }
 
         public String total() {
             if (this.end == null) {
                 this.stop();
             }
-            return DurationFormatUtils.formatDuration(Duration.between(this.start, this.end).toMillis(), "**HH:mm:ss:SSS**", true) ;
+            return DurationFormatUtils.formatDuration(Duration.between(this.start, this.end).toMillis(), "**dd:HH:mm:ss:SSS**", true) ;
         }
     }
 }

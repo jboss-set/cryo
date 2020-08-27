@@ -31,7 +31,8 @@ import org.jboss.set.cryo.staging.OperationResult.Outcome;
 
 public class HarmoniaOperationCenter extends DirectoryOrientedOperationCenter {
     public static final String ENV_HARMONIA_BUILD_SH="HARMONIA_BUILD_SCRIPT";
-    protected static final String[] COMMAND_HARMONIA_BUILD = new String[] { "bash", "-x", System.getenv("ENV_HARMONIA_BUILD_SH") };
+    protected static final String[] COMMAND_HARMONIA_BUILD = new String[] { "bash", "-x", System.getenv("ENV_HARMONIA_BUILD_SH"), "build" };
+    protected static final String[] COMMAND_HARMONIA_TEST = new String[] { "bash", "-x", System.getenv("ENV_HARMONIA_BUILD_SH"), "testsuite" };
 
     public HarmoniaOperationCenter() {
         //NO op constructor for services SPI
@@ -42,9 +43,16 @@ public class HarmoniaOperationCenter extends DirectoryOrientedOperationCenter {
     }
     @Override
     public OperationResult buildAndRunTestsuite(final PrintStream out) {
+        //INFO: tad cheat, since harmonia splits build and test
         final ProcessBuilder buildRepository = new ProcessBuilder(COMMAND_HARMONIA_BUILD);
         buildRepository.directory(repositoryLocation);
-        return new ExecuteProcess(out,buildRepository).getProcessResult();
+        OperationResult result = new ExecuteProcess(out,buildRepository).getProcessResult();
+        if(result.getOutcome() == Outcome.FAILURE) {
+            return result;
+        }
+        final ProcessBuilder testRepository = new ProcessBuilder(COMMAND_HARMONIA_TEST);
+        testRepository.directory(repositoryLocation);
+        return new ExecuteProcess(out,testRepository).getProcessResult();
     }
 
     @Override
