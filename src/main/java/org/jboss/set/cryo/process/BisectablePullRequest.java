@@ -26,6 +26,9 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.logging.Level;
 
+import javax.naming.NameNotFoundException;
+
+import org.jboss.set.aphrodite.domain.Label;
 import org.jboss.set.aphrodite.domain.PullRequest;
 import org.jboss.set.cryo.Main;
 import org.jboss.set.cryo.staging.OperationCenter;
@@ -39,6 +42,7 @@ import org.jboss.set.cryo.staging.OperationResult;
  */
 public class BisectablePullRequest {
 
+    protected final String LABEL_HAS_ALL_ACKS = "Has All Acks";
     protected CryoPRState state = CryoPRState.PRISTINE;
     protected final PullRequest pullRequest;
 
@@ -80,6 +84,20 @@ public class BisectablePullRequest {
         return this.dependant != null;
     }
 
+    public boolean hasAllAcks() {
+        //TODO: no need for requrency?
+        try {
+            for(Label l:this.getPullRequest().getLabels()) {
+                if(l.getName().equals(LABEL_HAS_ALL_ACKS)) {
+                    return true;
+                }
+            }
+        } catch (NameNotFoundException e) {
+            Main.log(Level.WARNING, "Can not fetch label list for: {0}", this.pullRequest.getURL());
+        }
+        return false;
+    }
+
     /**
      * Add dependency, check if either father or child is corrupted and mark both properly;
      * @param bisectablePullRequest
@@ -89,7 +107,8 @@ public class BisectablePullRequest {
       //TODO: vet state:
       // - mark as corrupted if dep is corrupted
       // - mark both/one as corrupt in case of false
-        if(bisectablePullRequest.dependant != null && bisectablePullRequest.dependant.equals(this)) {
+        if(bisectablePullRequest.dependant != null && !bisectablePullRequest.dependant.equals(this)) {
+            //TODO: this should also never be non null?
             //TODO: if more than one PR is permitted to depend on another one, this has to be changed
             Main.log(Level.WARNING, "Pull Request[{0}] is already dependency of [{1}], can not add it as dependency of [{2}]. Marking both as corrupted!", new Object[] {
                     bisectablePullRequest.getPullRequest().getURL(),bisectablePullRequest.dependant.getPullRequest().getURL(), this.pullRequest.getURL()
@@ -100,7 +119,7 @@ public class BisectablePullRequest {
         } else {
             if(bisectablePullRequest.getState() == CryoPRState.CORRUPTED) {
                 this.markCorrupted();
-            } else if(this.getState() ==CryoPRState.CORRUPTED) {
+            } else if(this.getState() == CryoPRState.CORRUPTED) {
                 bisectablePullRequest.markCorrupted();
             }
             bisectablePullRequest.dependant = this;
@@ -246,7 +265,6 @@ public class BisectablePullRequest {
     }
     public void markFailed() {
         propagateState(CryoPRState.FAILED, true);
-        //this.state = CryoPRState.FAILED;
     }
 
     public void markCorrupted() {
@@ -257,13 +275,23 @@ public class BisectablePullRequest {
         propagateState(CryoPRState.EXCLUDE, true);
     }
 
-    protected void propagateState(final CryoPRState state, boolean goUp) {
+    public void markIneligible() {
+        this.state = CryoPRState.INELIGIBLE;
+        propagateState(CryoPRState.CORRUPTED, true);
+    }
+
+    protected void propagateState(final CryoPRState toSet, boolean goUp) {
+        //TODO: improve this. Its fragile
         if(goUp && this.dependant != null) {
-            this.dependant.propagateState(state, goUp);
+            this.dependant.propagateState(toSet, goUp);
         } else {
-            this.state = state;
             for(int index=this.dependencies.size()-1;index>=0;index--) {
-                this.dependencies.get(index).propagateState(state, false);
+                this.dependencies.get(index).propagateState(toSet, false);
+            }
+            if(this.state == CryoPRState.INELIGIBLE || this.state == CryoPRState.CORRUPTED) {
+                return;
+            } else {
+                this.state = toSet;
             }
         }
     }
@@ -295,7 +323,12 @@ public class BisectablePullRequest {
         /**
          * wrong meta, has deps that are not in stream - basically anything else that needs to be reported that does not fall into FAIL/NO_MERGE
          */
-        CORRUPTED;
+        CORRUPTED,
+        /**
+         * Indicate that PR did not pass all required check( ie, does not have all acks or something more fancy
+         */
+        INELIGIBLE;
+
     }
 
     public String toString() {

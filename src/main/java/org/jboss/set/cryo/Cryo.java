@@ -78,21 +78,24 @@ public class Cryo {
 
     protected String futureBranch;
 
+    protected String remoteCodeBase;
     protected Aphrodite aphrodite;
     protected List<BisectablePullRequest> coldStorage;
     protected final boolean dryRun;
     protected final boolean invert;
+    protected final boolean checkPRState;
     protected final Set<String> excludeSet;
     protected final String suffix;
     protected final String opsCoreHint;
 
-    // TODO: redo with more sophisticated state machine
+    // TODO: redo with more sophisticated state machine?
     protected boolean weDone = false;
 
-    public Cryo(final File directory, final boolean dryRun, final boolean invertPullRequests, Set<String> excludeSet, String suffix, String opsCore) {
+    public Cryo(final File directory, final boolean dryRun, final boolean invertPullRequests, final boolean checkPRState, Set<String> excludeSet, String suffix, String opsCore) {
         this.repositoryLocation = directory;
         this.dryRun = dryRun;
         this.invert = invertPullRequests;
+        this.checkPRState = checkPRState;
         this.excludeSet = excludeSet;
         this.suffix = suffix;
         this.opsCoreHint = opsCore;
@@ -186,6 +189,11 @@ public class Cryo {
             case SUCCESS:
                 Main.log(Level.INFO, "[SUCCESS] Repository branch: {0}", result.getOutput());
                 this.branch = result.getOutput();
+                if(this.branch.endsWith(this.suffix)) {
+                    this.remoteCodeBase = this.branch.substring(0,this.branch.indexOf(this.suffix));
+                } else {
+                    this.remoteCodeBase = this.branch;
+                }
                 return true;
             case FAILURE:
             default:
@@ -251,35 +259,6 @@ public class Cryo {
      *
      * @return
      */
-    protected boolean _fetchPRList() {
-        this.coldStorage = new ArrayList<>();
-        try {
-            final Repository repository = this.aphrodite.getRepository(this.repositoryURL);
-            final List<PullRequest> allPullRequests = aphrodite.getPullRequestsByState(repository, PullRequestState.OPEN);
-            for (PullRequest pullRequest : allPullRequests) {
-                //INFO: we fetch all PRs for branch, regardless of
-                if (pullRequest.getCodebase().getName().equalsIgnoreCase(this.branch)) {
-                    final BisectablePullRequest bisectablePullRequest = new BisectablePullRequest(this.operationCenter,
-                            pullRequest);
-                    this.coldStorage.add(bisectablePullRequest);
-                }
-            }
-            if(this.invert) {
-                Collections.reverse(this.coldStorage);
-            }
-            ostracizeColdStorage();
-            return true;
-        } catch (NotFoundException e) {
-            Main.log(Level.SEVERE, "Failed to fetch repository '"+this.repositoryURL+"' due to:", e);
-        }
-        return false;
-    }
-
-    /**
-     * Fetch PR list from remote repository, create local data structures and prepare to rumble!!
-     *
-     * @return
-     */
     protected boolean fetchPRList() {
         this.coldStorage = new ArrayList<>();
         try {
@@ -288,20 +267,17 @@ public class Cryo {
             if(this.invert) {
                 Collections.reverse(allPullRequests);
             }
-            //final Map<URL,BisectablePullRequest> referencableStorage = new TreeMap<URL, BisectablePullRequest>((o1, o2) -> o1.toString().compareTo(o2.toString()));
+
             final Map<URL,BisectablePullRequest> referencableStorage = new LinkedHashMap<URL, BisectablePullRequest>(allPullRequests.size());
 
-            final List<BisectablePullRequest> tmpStorage = new ArrayList<>();
-            //Main.log(Level.CONFIG, "Fetching PR list, desired codebase[{0}]", new Object[] {this.branch});
-            Main.log(Level.INFO, "Fetching PR list, desired codebase[{0}]", new Object[] {this.branch});
+            Main.log(Level.INFO, "Fetching PR list, desired codebase[{0}]", new Object[] {this.remoteCodeBase});
             for (PullRequest pullRequest : allPullRequests) {
                 try {
-                    if (pullRequest.getCodebase().getName().equalsIgnoreCase(this.branch)) {
+                    if (pullRequest.getCodebase().getName().equalsIgnoreCase(this.remoteCodeBase)) {
                         final BisectablePullRequest req = new BisectablePullRequest(this.operationCenter, pullRequest);
                         // Main.log(Level.CONFIG, "Retaining Pull Request: {0}", new Object[] {req});
                         Main.log(Level.INFO, "Retaining Pull Request: {0}", new Object[] { req });
                         referencableStorage.put(pullRequest.getURL(), req);
-                        tmpStorage.add(req);
                     } else {
                         final BisectablePullRequest req = new BisectablePullRequest(this.operationCenter, pullRequest);
                         // Main.log(Level.CONFIG, "Purging Pull Request: {0}", new Object[] {req});
@@ -317,15 +293,17 @@ public class Cryo {
             // and store in #coldStorage
             for(URL u:referencableStorage.keySet()) {
                 final BisectablePullRequest currentToScrutiny = referencableStorage.get(u);
+
                 if(!currentToScrutiny.hasDefinedDependencies()) {
                     continue;
                 }
-                //NOTE: else we have deps and lets try to collect them from set
+                //INFO: else we have deps and lets try to collect them from referencableStorage
                 final List<URL> deps = currentToScrutiny.getPullRequest().findDependencyPullRequestsURL();
-                //Main.log(Level.FINE, "Searching for dependencies for PR[{0}], list:\n{1}", new Object[] {u,deps.stream()
+
                 Main.log(Level.INFO, "Searching for dependencies for PR[{0}], list:\n{1}", new Object[] {u,deps.stream()
                         .map(str->str.toString())
                         .collect(Collectors.joining("\n"))});
+
                 for(URL dependencyURL:deps) {
                     if(referencableStorage.containsKey(dependencyURL)) {
                         //TODO: handle failure
@@ -343,15 +321,16 @@ public class Cryo {
                     final URL u = it.next();
                     final BisectablePullRequest bisectablePullRequest = referencableStorage.get(u);
                     if(bisectablePullRequest.hasDependant()) {
-                        //INFO: ignore and remove. depds are going to be merged from dependant
+                        //INFO: ignore and remove. deps are going to be merged from dependant
                     } else {
                         coldStorage.add(bisectablePullRequest);
                     }
                     it.remove();
-                    //referencableStorage.remove(u);
                     continue;
                 }
             }
+            vetPullRequestsStateInColdStorage();
+            ostracizeColdStorage();
             return true;
         } catch (NotFoundException | MalformedURLException e) {
             Main.log(Level.SEVERE, "Failed to fetch repository '" + this.repositoryURL + "' due to:", e);
@@ -359,7 +338,7 @@ public class Cryo {
         return false;
     }
     /**
-     * Mark PRs as excluded if they are in exclude set. This will take care of deps as well - somehow
+     * Mark PRs as excluded if they are in exclude set. This will take care of deps as well
      */
     protected void ostracizeColdStorage() {
         if(excludeSet.size()>0)
@@ -367,6 +346,28 @@ public class Cryo {
             if(this.excludeSet.contains(bisectablePullRequest.getId())) {
                 bisectablePullRequest.markExclude();
             }
+        }
+    }
+
+    protected void vetPullRequestsStateInColdStorage() {
+        for(BisectablePullRequest bisectablePullRequest:this.coldStorage) {
+            vetPullRequestState(bisectablePullRequest);
+        }
+    }
+
+    protected void vetPullRequestState(final BisectablePullRequest bisectablePullRequest) {
+        if(!this.checkPRState) {
+            return;
+        }
+        if(!bisectablePullRequest.hasAllAcks()) {
+            bisectablePullRequest.markIneligible();
+            Main.log(Level.WARNING, "[{0}], does not meet requireents for merge", new Object[] {bisectablePullRequest.getPullRequest()});
+        } else {
+            Main.log(Level.FINE, "[{0}], met requireents for merge", new Object[] {bisectablePullRequest.getPullRequest()});
+        }
+        for(BisectablePullRequest dependency: bisectablePullRequest.getDependencies())
+        {
+            vetPullRequestState(dependency);
         }
     }
 
@@ -406,19 +407,26 @@ public class Cryo {
      * @return
      */
     protected boolean setUpFutureBranch() {
-        this.futureBranch = this.branch + this.suffix;
-        final OperationResult result = this.operationCenter.createNewBranch(this.futureBranch);
-        switch (result.getOutcome()) {
-            case SUCCESS:
-                Main.log(Level.INFO, "[SUCCESS] Created branch: {0}", this.futureBranch);
-                break;
-            case FAILURE:
-            default:
-                result.reportError("Failed to create future branch");
-                return false;
-        }
+        if (this.branch.endsWith(this.suffix)) {
+            this.futureBranch = this.branch;
+            Main.log(Level.WARNING,
+                    "[WARNING] Current branch [{0}] already has proposed suffix [{1}]. Either CRYO already ran or configuration is off a bit.", new Object[] {this.branch, this.suffix});
+            return true;
+        } else {
+            this.futureBranch = this.branch + this.suffix;
+            final OperationResult result = this.operationCenter.createNewBranch(this.futureBranch);
+            switch (result.getOutcome()) {
+                case SUCCESS:
+                    Main.log(Level.INFO, "[SUCCESS] Created branch: {0}", this.futureBranch);
+                    break;
+                case FAILURE:
+                default:
+                    result.reportError("Failed to create future branch");
+                    return false;
+            }
 
-        return true;
+            return true;
+        }
     }
 
     protected boolean runTestSuite() {
@@ -552,6 +560,8 @@ public class Cryo {
                     Main.log(Level.INFO, "[BISECT] [FAILURE] Push future branch");
                     result.reportError();
             }
+        } else {
+            Main.log(Level.INFO, "[BISECT] [SEMI-SUCCESS] Run complete, but there is nothing to merge.... what a waste of time!");
         }
     }
 

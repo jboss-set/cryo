@@ -49,6 +49,7 @@ public class Main {
     private static final String[] ARG_SUFIX = new String[] {"-s","--sufix"};
     private static final String[] ARG_OPS = new String[] {"-o","--ops"};
     private static final String[] ARG_FAST = new String[] {"-f","--fast"};
+    private static final String[] ARG_CHECK_STATE = new String[] {"-c","--check-pr-state"};
     private static String CONVERT_TO_ARG_ID(final String id) {
         return id.replaceFirst("--", "").replaceAll("-", "_");
     }
@@ -81,6 +82,7 @@ public class Main {
         parser.addArgument(ARG_SUFIX).nargs(1).required(false).setDefault(".future").help("Sufix to use, default is '.future'.");
         parser.addArgument(ARG_OPS).nargs(1).required(false).setDefault("DirectoryOrientedOperationCenter").help("Class of ops source. If not present first service available will be used");
         parser.addArgument(ARG_FAST).action(Arguments.storeTrue()).required(false).setDefault(false).help("Disable time stamp overlay and buffering for build output.");
+        parser.addArgument(ARG_CHECK_STATE).action(Arguments.storeTrue()).required(false).setDefault(false).help("Check state of pull request(Has all acks). By default CRYO will accept all PRs for branch.");
 
         try {
             Namespace ns = parser.parseArgs(args);
@@ -97,10 +99,12 @@ public class Main {
             final boolean dryRun = ns.getBoolean(CONVERT_TO_ARG_ID(ARG_DRYRUN[1]));
             final boolean invertPullRequests = ns.getBoolean(CONVERT_TO_ARG_ID(ARG_INVERT[1]));
             final boolean fast = ns.getBoolean(CONVERT_TO_ARG_ID(ARG_FAST[1]));
+            final boolean checkPRState = ns.getBoolean(CONVERT_TO_ARG_ID(ARG_CHECK_STATE[1]));
             //BAD...
             Main.fastLogging = fast;
-            final Cryo freezerProgram = new Cryo(directory, dryRun, invertPullRequests, excludeSet, suffix, opsCore);
+            final Cryo freezerProgram = new Cryo(directory, dryRun, invertPullRequests, checkPRState, excludeSet, suffix, opsCore);
             freezerProgram.createStorage();
+
         } catch (ArgumentParserException e) {
             parser.handleError(e);
             System.exit(1);
