@@ -24,6 +24,7 @@ package org.jboss.set.cryo.staging.directory;
 import java.io.File;
 import java.io.PrintStream;
 import java.nio.channels.IllegalSelectorException;
+import java.util.ArrayList;
 import java.util.Arrays;
 
 import org.jboss.set.cryo.process.ExecuteProcess;
@@ -69,6 +70,33 @@ public class DirectoryOrientedOperationCenter implements OperationCenter {
         cmd[cmd.length - 1] = commitHash;
         return cmd;
     }
+
+    protected static String[] COMMAND_MVN_BUILD_AND_TEST(final String[] args) {
+        String[] cmd = null;
+        if(args == null || args.length == 0) {
+            cmd = COMMAND_MVN_INSTALL_AND_TEST;
+        } else {
+            final ArrayList<String> stringerCommand = new ArrayList<>();
+            stringerCommand.addAll(Arrays.asList(COMMAND_MVN_INSTALL_AND_TEST));
+            stringerCommand.addAll(Arrays.asList(args));
+            cmd = stringerCommand.toArray(new String[] {});
+        }
+        return cmd;
+    }
+
+    protected static String[] COMMAND_MVN_CLEAN(final String[] args) {
+        String[] cmd = null;
+        if(args == null || args.length == 0) {
+            cmd = COMMAND_MVN_CLEAN;
+        } else {
+            final ArrayList<String> stringerCommand = new ArrayList<>();
+            stringerCommand.addAll(Arrays.asList(COMMAND_MVN_CLEAN));
+            stringerCommand.addAll(Arrays.asList(args));
+            cmd = stringerCommand.toArray(new String[] {});
+        }
+        return cmd;
+    }
+
     protected File repositoryLocation;
     protected void vetOperationRoom() {
         if(repositoryLocation == null) {
@@ -104,15 +132,15 @@ public class DirectoryOrientedOperationCenter implements OperationCenter {
     }
 
     @Override
-    public OperationResult cleanUpRepository(final PrintStream out) {
-        final ProcessBuilder cleanRepository = new ProcessBuilder(COMMAND_MVN_CLEAN);
+    public OperationResult cleanUpRepository(final PrintStream out, final String[] args) {
+        final ProcessBuilder cleanRepository = new ProcessBuilder(COMMAND_MVN_CLEAN(args));
         cleanRepository.directory(repositoryLocation);
         return new ExecuteProcess(out,cleanRepository).getProcessResult();
     }
 
     @Override
-    public OperationResult buildAndRunTestsuite(final PrintStream out) {
-        final ProcessBuilder buildRepository = new ProcessBuilder(COMMAND_MVN_INSTALL_AND_TEST);
+    public OperationResult buildAndRunTestsuite(final PrintStream out, final String[] args) {
+        final ProcessBuilder buildRepository = new ProcessBuilder(COMMAND_MVN_BUILD_AND_TEST(args));
         buildRepository.directory(repositoryLocation);
         return new ExecuteProcess(out,buildRepository).getProcessResult();
     }

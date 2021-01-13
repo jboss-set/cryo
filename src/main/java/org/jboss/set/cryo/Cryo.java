@@ -87,11 +87,12 @@ public class Cryo {
     protected final Set<String> excludeSet;
     protected final String suffix;
     protected final String opsCoreHint;
+    protected final String[] mavenArgs;
 
     // TODO: redo with more sophisticated state machine?
     protected boolean weDone = false;
 
-    public Cryo(final File directory, final boolean dryRun, final boolean invertPullRequests, final boolean checkPRState, Set<String> excludeSet, String suffix, String opsCore) {
+    public Cryo(final File directory, final boolean dryRun, final boolean invertPullRequests, final boolean checkPRState, Set<String> excludeSet, String suffix, String opsCore, String[] mavenArgs) {
         this.repositoryLocation = directory;
         this.dryRun = dryRun;
         this.invert = invertPullRequests;
@@ -99,6 +100,7 @@ public class Cryo {
         this.excludeSet = excludeSet;
         this.suffix = suffix;
         this.opsCoreHint = opsCore;
+        this.mavenArgs = mavenArgs;
     }
 
     /**
@@ -210,7 +212,7 @@ public class Cryo {
     protected boolean cleanUpRepository() {
         // Just in case.
         Main.log(Level.INFO, "Cleaning up repository.");
-        final OperationResult result = this.operationCenter.cleanUpRepository(System.out);
+        final OperationResult result = this.operationCenter.cleanUpRepository(System.out, this.mavenArgs);
         switch (result.getOutcome()) {
             case SUCCESS:
                 Main.log(Level.INFO, "Cleanup of repository:\n{0}", result.getOutput());
@@ -223,7 +225,7 @@ public class Cryo {
     }
 
     protected boolean buildAndRunTestsuite() {
-        final OperationResult result = this.operationCenter.buildAndRunTestsuite(System.out);
+        final OperationResult result = this.operationCenter.buildAndRunTestsuite(System.out, this.mavenArgs);
         switch (result.getOutcome()) {
             case SUCCESS:
                 Main.log(Level.INFO, "[SUCCESS] Build and test: {0}", result.getOutput());

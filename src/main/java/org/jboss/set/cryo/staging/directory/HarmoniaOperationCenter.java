@@ -42,7 +42,7 @@ public class HarmoniaOperationCenter extends DirectoryOrientedOperationCenter {
         super(file);
     }
     @Override
-    public OperationResult buildAndRunTestsuite(final PrintStream out) {
+    public OperationResult buildAndRunTestsuite(final PrintStream out, final String[] args) {
         //INFO: tad cheat, since harmonia splits build and test
         final ProcessBuilder buildRepository = new ProcessBuilder(COMMAND_HARMONIA_BUILD);
         buildRepository.directory(repositoryLocation);
@@ -56,7 +56,7 @@ public class HarmoniaOperationCenter extends DirectoryOrientedOperationCenter {
     }
 
     @Override
-    public OperationResult cleanUpRepository(final PrintStream out) {
+    public OperationResult cleanUpRepository(final PrintStream out, final String[] args) {
         //NO-OP, harmonia handles it via scripts, there is no separate clean command
         final ProcessBuilder cleanRepository = new ProcessBuilder(COMMAND_MVN_CLEAN);
         cleanRepository.directory(repositoryLocation);

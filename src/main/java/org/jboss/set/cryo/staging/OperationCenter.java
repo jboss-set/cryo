@@ -32,8 +32,8 @@ public interface OperationCenter {
     OperationCenter initializeOperationCenter(Object[] inserts);
 
     OperationResult abortMerge();
-    OperationResult buildAndRunTestsuite(final PrintStream out);
-    OperationResult cleanUpRepository(final PrintStream out);
+    OperationResult buildAndRunTestsuite(final PrintStream out, final String[] args);
+    OperationResult cleanUpRepository(final PrintStream out, final String[] args);
     OperationResult createNewBranch(final String newBranchName);
     OperationResult determineCurrentBranch();
     OperationResult determineRepositoryURL();

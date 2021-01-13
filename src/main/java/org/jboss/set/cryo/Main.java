@@ -50,6 +50,7 @@ public class Main {
     private static final String[] ARG_OPS = new String[] {"-o","--ops"};
     private static final String[] ARG_FAST = new String[] {"-f","--fast"};
     private static final String[] ARG_CHECK_STATE = new String[] {"-c","--check-pr-state"};
+    private static final String[] ARG_MVN_ARGS = new String[] {"-m","--maven-args"};
     private static String CONVERT_TO_ARG_ID(final String id) {
         return id.replaceFirst("--", "").replaceAll("-", "_");
     }
@@ -83,26 +84,32 @@ public class Main {
         parser.addArgument(ARG_OPS).nargs(1).required(false).setDefault("DirectoryOrientedOperationCenter").help("Class of ops source. If not present first service available will be used");
         parser.addArgument(ARG_FAST).action(Arguments.storeTrue()).required(false).setDefault(false).help("Disable time stamp overlay and buffering for build output.");
         parser.addArgument(ARG_CHECK_STATE).action(Arguments.storeTrue()).required(false).setDefault(false).help("Check state of pull request(Has all acks). By default CRYO will accept all PRs for branch.");
+        parser.addArgument(ARG_MVN_ARGS).nargs(1).required(false).help("Set any maven command line params required to run. Each entry should be comma separated.");
 
         try {
             Namespace ns = parser.parseArgs(args);
-            final File directory = new File(ns.getString(CONVERT_TO_ARG_ID(ARG_REPOSITORY[1])).replace("[", "").replace("]", ""));
+            final File directory = new File(normalizeParamters(ns.getString(CONVERT_TO_ARG_ID(ARG_REPOSITORY[1]))));
             Set<String> excludeSet = null;
             if(ns.get(CONVERT_TO_ARG_ID(ARG_EXCLUDE[1])) != null) {
-                String interimExclude = ns.getString(CONVERT_TO_ARG_ID(ARG_EXCLUDE[1])).replace("[", "").replace("]", "");
+                String interimExclude = normalizeParamters(ns.getString(CONVERT_TO_ARG_ID(ARG_EXCLUDE[1])));
                 excludeSet = ImmutableSet.copyOf(Arrays.asList(interimExclude.split(",")));
             } else {
                 excludeSet = ImmutableSet.copyOf(new ArrayList<String>());
             }
-            final String suffix = ns.getString(CONVERT_TO_ARG_ID(ARG_SUFIX[1])).replace("[", "").replace("]", "");
-            final String opsCore = ns.getString(CONVERT_TO_ARG_ID(ARG_OPS[1])).replace("[", "").replace("]", "");
+            final String suffix = normalizeParamters(ns.getString(CONVERT_TO_ARG_ID(ARG_SUFIX[1])));
+            final String opsCore = normalizeParamters(ns.getString(CONVERT_TO_ARG_ID(ARG_OPS[1])));
             final boolean dryRun = ns.getBoolean(CONVERT_TO_ARG_ID(ARG_DRYRUN[1]));
             final boolean invertPullRequests = ns.getBoolean(CONVERT_TO_ARG_ID(ARG_INVERT[1]));
             final boolean fast = ns.getBoolean(CONVERT_TO_ARG_ID(ARG_FAST[1]));
             final boolean checkPRState = ns.getBoolean(CONVERT_TO_ARG_ID(ARG_CHECK_STATE[1]));
+            final String mavenArgsTMP = normalizeParamters(ns.getString(CONVERT_TO_ARG_ID(ARG_MVN_ARGS[1])));
+            String[] mavenArgs = null;
+            if(mavenArgsTMP!= null && !mavenArgsTMP.equals("")) {
+                mavenArgs = mavenArgsTMP.split(",");
+            }
             //BAD...
             Main.fastLogging = fast;
-            final Cryo freezerProgram = new Cryo(directory, dryRun, invertPullRequests, checkPRState, excludeSet, suffix, opsCore);
+            final Cryo freezerProgram = new Cryo(directory, dryRun, invertPullRequests, checkPRState, excludeSet, suffix, opsCore, mavenArgs);
             freezerProgram.createStorage();
 
         } catch (ArgumentParserException e) {
@@ -111,6 +118,10 @@ public class Main {
         } finally {
             TIME_TRACKER.stop();
         }
+    }
+
+    private static String normalizeParamters(final String paramValue) {
+        return paramValue.replace("[", "").replace("]", "");
     }
 
     public static void log(final Level level, final String msg) {
