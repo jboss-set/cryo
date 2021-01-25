@@ -21,6 +21,7 @@
  */
 package org.jboss.set.cryo.process;
 
+import java.net.URL;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
@@ -53,11 +54,22 @@ public class BisectablePullRequest {
     //dependency stuff
     protected BisectablePullRequest dependant;
     protected List<BisectablePullRequest> dependencies = new ArrayList<>();
+    //hash/equals
+    protected final URL id;
     public BisectablePullRequest(final OperationCenter operationCenter, final PullRequest pullRequest) {
         super();
         this.pullRequest = pullRequest;
+        this.id = this.pullRequest.getURL();
         //INFO: a bit counter pattern but this allows us to have action methods in BPR
         this.operationCenter = operationCenter;
+    }
+
+    public BisectablePullRequest(final URL id) {
+        super();
+        //INFO: a bit counter pattern but this allows us to have action methods in BPR
+        this.id = id;
+        this.pullRequest = null;
+        this.operationCenter = null;
     }
 
     public CryoPRState getState() {
@@ -77,7 +89,11 @@ public class BisectablePullRequest {
     }
 
     public boolean hasDefinedDependencies() {
-        return this.pullRequest.hasDependencies();
+        if(this.getPullRequest() != null){
+            return this.pullRequest.hasDependencies();
+        } else {
+            return false;
+        }
     }
 
     public boolean hasDependant() {
@@ -85,17 +101,22 @@ public class BisectablePullRequest {
     }
 
     public boolean hasAllAcks() {
-        //TODO: no need for requrency?
-        try {
-            for(Label l:this.getPullRequest().getLabels()) {
-                if(l.getName().equals(LABEL_HAS_ALL_ACKS)) {
-                    return true;
+        // TODO: no need for requrency?
+        if (this.getPullRequest() == null) {
+            // TODO check for failure if false
+            return true;
+        } else {
+            try {
+                for (Label l : this.getPullRequest().getLabels()) {
+                    if (l.getName().equals(LABEL_HAS_ALL_ACKS)) {
+                        return true;
+                    }
                 }
+            } catch (NameNotFoundException e) {
+                Main.log(Level.WARNING, "Can not fetch label list for: {0}", this.pullRequest.getURL());
             }
-        } catch (NameNotFoundException e) {
-            Main.log(Level.WARNING, "Can not fetch label list for: {0}", this.pullRequest.getURL());
+            return false;
         }
-        return false;
     }
 
     /**
@@ -111,7 +132,7 @@ public class BisectablePullRequest {
             //TODO: this should also never be non null?
             //TODO: if more than one PR is permitted to depend on another one, this has to be changed
             Main.log(Level.WARNING, "Pull Request[{0}] is already dependency of [{1}], can not add it as dependency of [{2}]. Marking both as corrupted!", new Object[] {
-                    bisectablePullRequest.getPullRequest().getURL(),bisectablePullRequest.dependant.getPullRequest().getURL(), this.pullRequest.getURL()
+                    bisectablePullRequest.id,bisectablePullRequest.dependant.id, this.id
             });
             this.markCorrupted();
             bisectablePullRequest.markCorrupted();
@@ -248,7 +269,11 @@ public class BisectablePullRequest {
         return this.operationCenter.readRepositoryCommitHEAD();
     }
     public String getId() {
+        if(this.pullRequest != null) {
         return this.pullRequest.getId();
+        } else {
+            return null;
+        }
     }
 
     public void markGood() {
@@ -336,9 +361,14 @@ public class BisectablePullRequest {
         _toString(buffer, "", "");
         return buffer.toString();
     }
+
     protected void _toString(StringBuilder buffer, String prefix, String childPrefix) {
         buffer.append(prefix);
-        buffer.append("BisectablePullRequest ["+ pullRequest.getURL() + ", title='"+this.pullRequest.getTitle()+"'"+", state=" + state + "]");
+        if(pullRequest != null) {
+            buffer.append("BisectablePullRequest ["+ pullRequest.getURL() + ", title='"+this.pullRequest.getTitle()+"'"+", state=" + state + "]");
+        } else {
+            buffer.append("BisectablePullRequest ["+ id + ", title='NA'"+", state=" + state + "]");
+        }
         buffer.append("\n");
         for(Iterator<BisectablePullRequest> it = this.dependencies.iterator();it.hasNext();) {
             BisectablePullRequest dep = it.next();
@@ -350,4 +380,5 @@ public class BisectablePullRequest {
         }
     }
 
+    //TODO: implement equals hash based on URL ?
 }

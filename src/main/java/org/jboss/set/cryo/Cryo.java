@@ -29,7 +29,6 @@ import java.util.Collections;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.ServiceLoader;
 import java.util.Set;
 import java.util.logging.Level;
@@ -85,6 +84,7 @@ public class Cryo {
     protected final boolean invert;
     protected final boolean checkPRState;
     protected final Set<String> excludeSet;
+    protected final List<String> includeList;
     protected final String suffix;
     protected final String opsCoreHint;
     protected final String[] mavenArgs;
@@ -92,12 +92,13 @@ public class Cryo {
     // TODO: redo with more sophisticated state machine?
     protected boolean weDone = false;
 
-    public Cryo(final File directory, final boolean dryRun, final boolean invertPullRequests, final boolean checkPRState, Set<String> excludeSet, String suffix, String opsCore, String[] mavenArgs) {
+    public Cryo(final File directory, final boolean dryRun, final boolean invertPullRequests, final boolean checkPRState, Set<String> excludeSet, List<String> includeList, String suffix, String opsCore, String[] mavenArgs) {
         this.repositoryLocation = directory;
         this.dryRun = dryRun;
         this.invert = invertPullRequests;
         this.checkPRState = checkPRState;
         this.excludeSet = excludeSet;
+        this.includeList = includeList;
         this.suffix = suffix;
         this.opsCoreHint = opsCore;
         this.mavenArgs = mavenArgs;
@@ -270,7 +271,7 @@ public class Cryo {
                 Collections.reverse(allPullRequests);
             }
 
-            final Map<URL,BisectablePullRequest> referencableStorage = new LinkedHashMap<URL, BisectablePullRequest>(allPullRequests.size());
+            final LinkedHashMap<URL,BisectablePullRequest> inintialPullRequestPool = new LinkedHashMap<URL, BisectablePullRequest>(allPullRequests.size());
 
             Main.log(Level.INFO, "Fetching PR list, desired codebase[{0}]", new Object[] {this.remoteCodeBase});
             for (PullRequest pullRequest : allPullRequests) {
@@ -279,7 +280,7 @@ public class Cryo {
                         final BisectablePullRequest req = new BisectablePullRequest(this.operationCenter, pullRequest);
                         // Main.log(Level.CONFIG, "Retaining Pull Request: {0}", new Object[] {req});
                         Main.log(Level.INFO, "Retaining Pull Request: {0}", new Object[] { req });
-                        referencableStorage.put(pullRequest.getURL(), req);
+                        inintialPullRequestPool.put(pullRequest.getURL(), req);
                     } else {
                         final BisectablePullRequest req = new BisectablePullRequest(this.operationCenter, pullRequest);
                         // Main.log(Level.CONFIG, "Purging Pull Request: {0}", new Object[] {req});
@@ -291,15 +292,48 @@ public class Cryo {
                 }
             }
 
-            //INFO: after this we should have a tree built, after we need to vet into mergable structure
+            //INFO: get most URL part without prefix for mockups, not ideal but...
+            final String urlPrefixOfPR = procureURLPrefix(inintialPullRequestPool);
+            final LinkedHashMap<URL,BisectablePullRequest> pullRequestList;
+            // if include list is present, build PR tree from it, if not, use active set
+            if (inintialPullRequestPool.size() > 0 && this.includeList != null && this.includeList.size() > 0) {
+                pullRequestList = new LinkedHashMap<URL, BisectablePullRequest>(this.includeList.size());
+                for (String idString : this.includeList) {
+                    final Iterator<BisectablePullRequest> it = inintialPullRequestPool.values().iterator();
+                    BisectablePullRequest toIncludePR = null;
+                    while (it.hasNext()) {
+                        final BisectablePullRequest tmp = it.next();
+                        if (tmp.getId().contentEquals(idString)) {
+                            toIncludePR = tmp;
+                            break;
+                        }
+                    }
+
+                    if (toIncludePR != null) {
+                        pullRequestList.put(toIncludePR.getPullRequest().getURL(), toIncludePR);
+                    } else {
+                        final URL tmpIdURL = new URL(urlPrefixOfPR+idString);
+                        final BisectablePullRequest missing = new BisectablePullRequest(tmpIdURL);
+                        missing.markIneligible();
+                        pullRequestList.put(tmpIdURL, missing);
+                        Main.log(Level.WARNING, "Failed to find PR[{0}] in list of available pull requests",
+                                new Object[] { idString });
+                    }
+                }
+            } else {
+                //use full list and vet after
+                pullRequestList = inintialPullRequestPool;
+            }
+            //INFO: build deps.
+            //after this we should have a tree built, after we need to vet into mergable structure
             // and store in #coldStorage
-            for(URL u:referencableStorage.keySet()) {
-                final BisectablePullRequest currentToScrutiny = referencableStorage.get(u);
+            for(URL u:pullRequestList.keySet()) {
+                final BisectablePullRequest currentToScrutiny = pullRequestList.get(u);
 
                 if(!currentToScrutiny.hasDefinedDependencies()) {
                     continue;
                 }
-                //INFO: else we have deps and lets try to collect them from referencableStorage
+                //INFO: else we have deps and lets try to collect them from #pullRequestList
                 final List<URL> deps = currentToScrutiny.getPullRequest().findDependencyPullRequestsURL();
 
                 Main.log(Level.INFO, "Searching for dependencies for PR[{0}], list:\n{1}", new Object[] {u,deps.stream()
@@ -307,21 +341,23 @@ public class Cryo {
                         .collect(Collectors.joining("\n"))});
 
                 for(URL dependencyURL:deps) {
-                    if(referencableStorage.containsKey(dependencyURL)) {
-                        //TODO: handle failure
-                        currentToScrutiny.addDependency(referencableStorage.get(dependencyURL));
+                    if(pullRequestList.containsKey(dependencyURL)) {
+                        currentToScrutiny.addDependency(pullRequestList.get(dependencyURL));
                     } else {
-                        //TODO: add "NON_EXISTING" BisectablePullRequest and add dep for log transparency
+                        //TODO: add "NON_EXISTING" or set "INELIGIBLE" BisectablePullRequest and add dep for log transparency
                         Main.log(Level.WARNING, "Failed to find dependency for PR[{0}], dependency[{1}]", new Object[] {u,dependencyURL});
+                        final BisectablePullRequest missing = new BisectablePullRequest(dependencyURL);
                         currentToScrutiny.markCorrupted();
+                        currentToScrutiny.addDependency(missing);
+                        missing.markIneligible();
                     }
                 }
             }
 
-            while(referencableStorage.size() >0) {
-                for(Iterator<URL> it =  referencableStorage.keySet().iterator();it.hasNext() ;) {
+            while(pullRequestList.size() >0) {
+                for(Iterator<URL> it =  pullRequestList.keySet().iterator();it.hasNext() ;) {
                     final URL u = it.next();
-                    final BisectablePullRequest bisectablePullRequest = referencableStorage.get(u);
+                    final BisectablePullRequest bisectablePullRequest = pullRequestList.get(u);
                     if(bisectablePullRequest.hasDependant()) {
                         //INFO: ignore and remove. deps are going to be merged from dependant
                     } else {
@@ -339,10 +375,20 @@ public class Cryo {
         }
         return false;
     }
+
+    private String procureURLPrefix(LinkedHashMap<URL, BisectablePullRequest> inintialPullRequestPool) {
+        if(inintialPullRequestPool.size() == 0) {
+            return null;
+        }
+        final String tmp = inintialPullRequestPool.keySet().iterator().next().toString();
+        return tmp.substring(0,tmp.lastIndexOf("/")+1);
+    }
+
     /**
      * Mark PRs as excluded if they are in exclude set. This will take care of deps as well
      */
     protected void ostracizeColdStorage() {
+        //FIXME: this wont work if dependency is in exclude?
         if(excludeSet.size()>0)
         for(BisectablePullRequest bisectablePullRequest:this.coldStorage) {
             if(this.excludeSet.contains(bisectablePullRequest.getId())) {
