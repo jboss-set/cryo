@@ -365,9 +365,11 @@ public class BisectablePullRequest {
     protected void _toString(StringBuilder buffer, String prefix, String childPrefix) {
         buffer.append(prefix);
         if(pullRequest != null) {
-            buffer.append("BisectablePullRequest ["+ pullRequest.getURL() + ", title='"+this.pullRequest.getTitle()+"'"+", state=" + state + "]");
+            //buffer.append("BisectablePullRequest ["+ pullRequest.getURL() + ", title='"+this.pullRequest.getTitle()+"'"+", state=" + state + "]");
+            buffer.append("["+ pullRequest.getURL() + ", title='"+this.pullRequest.getTitle()+"'"+", state=" + state + "]");
         } else {
-            buffer.append("BisectablePullRequest ["+ id + ", title='NA'"+", state=" + state + "]");
+            //buffer.append("BisectablePullRequest ["+ id + ", title='NA'"+", state=" + state + "]");
+            buffer.append("["+ id + ", title='NA'"+", state=" + state + "]");
         }
         buffer.append("\n");
         for(Iterator<BisectablePullRequest> it = this.dependencies.iterator();it.hasNext();) {
