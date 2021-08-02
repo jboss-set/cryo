@@ -276,6 +276,10 @@ public class Cryo {
             Main.log(Level.INFO, "Fetching PR list, desired codebase[{0}]", new Object[] {this.remoteCodeBase});
             for (PullRequest pullRequest : allPullRequests) {
                 try {
+                    if(pullRequest == null || pullRequest.getCodebase() ==null || pullRequest.getCodebase().getName() ==null) {
+                        Main.log(Level.SEVERE, "Bad PullRequest, skipping: {0}", new Object[] { pullRequest });
+                        continue;
+                    }
                     if (pullRequest.getCodebase().getName().equalsIgnoreCase(this.remoteCodeBase)) {
                         final BisectablePullRequest req = new BisectablePullRequest(this.operationCenter, pullRequest);
                         // Main.log(Level.CONFIG, "Retaining Pull Request: {0}", new Object[] {req});
