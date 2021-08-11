@@ -625,8 +625,11 @@ public class Cryo {
         final StringBuilder stringBuilder = new StringBuilder();
         stringBuilder.append(prefix);
         stringBuilder.append("\n");
-        for (BisectablePullRequest bisectablePullRequest : arr) {
-            stringBuilder.append(bisectablePullRequest.toString());
+        for(int i=0;i<arr.length;i++) {
+            stringBuilder.append(arr[i].toString());
+            if(i<arr.length-1) {
+                stringBuilder.append("\n");
+            }
         }
         Main.log(level, stringBuilder.toString());
     }
