@@ -359,7 +359,8 @@ public class BisectablePullRequest {
     public String toString() {
         StringBuilder buffer = new StringBuilder(50);
         _toString(buffer, "", "");
-        return buffer.toString();
+        //NOTE: trim is here to purge trailing newline from end of tree. Its easier this way.
+        return buffer.toString().trim();
     }
 
     protected void _toString(StringBuilder buffer, String prefix, String childPrefix) {
@@ -371,7 +372,11 @@ public class BisectablePullRequest {
             //buffer.append("BisectablePullRequest ["+ id + ", title='NA'"+", state=" + state + "]");
             buffer.append("["+ id + ", title='NA'"+", state=" + state + "]");
         }
-        buffer.append("\n");
+
+        if((prefix.equals("└── ")|| prefix.isEmpty()) && this.dependencies.size() ==0 ) {
+        } else {
+            buffer.append("\n");
+        }
         for(Iterator<BisectablePullRequest> it = this.dependencies.iterator();it.hasNext();) {
             BisectablePullRequest dep = it.next();
             if(it.hasNext()) {
