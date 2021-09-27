@@ -43,6 +43,11 @@ public class HarmoniaOperationCenter extends DirectoryOrientedOperationCenter {
     }
     @Override
     public OperationResult buildAndRunTestsuite(final PrintStream out, final String[] args) {
+        if (System.getenv("ENV_HARMONIA_BUILD_SH") == null
+                || System.getenv("ENV_HARMONIA_BUILD_SH").equals("")
+                || System.getenv("ENV_HARMONIA_BUILD_SH").equals("null")) {
+            throw new RuntimeException("env.ENV_HARMONIA_BUILD_SH needs to be specified to run build and testsuite.");
+        }
         //INFO: tad cheat, since harmonia splits build and test
         final ProcessBuilder buildRepository = new ProcessBuilder(COMMAND_HARMONIA_BUILD);
         buildRepository.directory(repositoryLocation);
