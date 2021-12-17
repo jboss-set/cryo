@@ -253,8 +253,8 @@ public class Cryo {
             return true;
         } catch (AphroditeException e) {
             Main.log("Failed to initialize aphrodite!", e);
+            throw new RuntimeException("Failed to initialize aphrodite!", e);
         }
-        return false;
     }
 
     /**
