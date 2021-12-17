@@ -25,7 +25,7 @@
 
         <org.jboss.jboss-dmr.version>1.1.6.Final</org.jboss.jboss-dmr.version>
         <org.wildfly.wildfly.build.config.version>8.0.0.Final</org.wildfly.wildfly.build.config.version>
-        <version.org.jboss.set.aphrodite>0.7.12.Final</version.org.jboss.set.aphrodite>
+        <version.org.jboss.set.aphrodite>0.7.15.Final</version.org.jboss.set.aphrodite>
         <version.org.freemarker.freemarker>2.3.23</version.org.freemarker.freemarker>
         <version.net.sourceforge.argparse4j>0.7.0</version.net.sourceforge.argparse4j>
         <version.mockito>1.9.5</version.mockito>
