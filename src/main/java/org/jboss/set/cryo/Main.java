@@ -29,8 +29,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Set;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 
 import org.apache.commons.lang3.time.DurationFormatUtils;
 
@@ -57,7 +55,6 @@ public class Main {
     private static String CONVERT_TO_ARG_ID(final String id) {
         return id.replaceFirst("--", "").replaceAll("-", "_");
     }
-    private static final Logger LOGGER = Logger.getLogger(Main.class.getPackage().getName());
     private static final TimeTracker TIME_TRACKER = new TimeTracker();
     private static boolean fastLogging = true;
 //    static {
@@ -135,22 +132,6 @@ public class Main {
         if(paramValue == null)
             return null;
         return paramValue.replace("[", "").replace("]", "");
-    }
-
-    public static void log(final Level level, final String msg) {
-        LOGGER.log(level, "[CRYO]["+TIME_TRACKER.interim()+"]: " + msg);
-    }
-
-    public static void log(final Level level, final String msg, final Object param) {
-        LOGGER.log(level, "[CRYO]["+TIME_TRACKER.interim()+"]: " + msg, param);
-    }
-
-    public static void log(final Level level, final String msg, final Object[] params) {
-        LOGGER.log(level, "[CRYO]["+TIME_TRACKER.interim()+"]: " + msg, params);
-    }
-
-    public static void log(final String msg, final Throwable t) {
-        LOGGER.log(Level.SEVERE, "[CRYO]["+TIME_TRACKER.interim()+"]: " + msg, t);
     }
 
     /**

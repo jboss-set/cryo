@@ -1,3 +1,4 @@
+
 /*
  * JBoss, Home of Professional Open Source.
  * Copyright (c) 2020, Red Hat, Inc., and individual contributors
@@ -23,6 +24,8 @@ package org.jboss.set.cryo.staging;
 
 import java.util.logging.Level;
 
+import org.jboss.set.cryo.Cryo;
+import org.jboss.set.cryo.CryoLogger;
 import org.jboss.set.cryo.Main;
 
 public class OperationResult {
@@ -41,7 +44,7 @@ public class OperationResult {
     }
 
     public OperationResult(final ProcessBuilder processBuilder, final Outcome outcome, final String output,
-            final Exception error) {
+                           final Exception error) {
         super();
         this.processBuilder = processBuilder;
         this.outcome = outcome;
@@ -63,15 +66,13 @@ public class OperationResult {
 
     public void reportSuccess() {
         if (this.outcome == Outcome.SUCCESS) {
-            Main.log(Level.INFO, "[SUCCESS] Execution of [{0}] went smooth: {1}' ",
-                    new Object[] { String.join(" ", this.processBuilder.command().toArray(new String[0])), this.output });
+            CryoLogger.ROOT_LOGGER.logExecutionWentSmooth(String.join(" ", this.processBuilder.command().toArray(new String[0])), this.output );
         }
     }
 
     public void reportSuccess(final String msg) {
         if (this.outcome == Outcome.SUCCESS) {
-            Main.log(Level.INFO, "[SUCCESS] {0}",
-                    new Object[] {msg});
+            CryoLogger.ROOT_LOGGER.logMessage(msg);
         }
     }
 
@@ -79,15 +80,13 @@ public class OperationResult {
         if (this.outcome == Outcome.FAILURE) {
             final String command = String.join(" ", this.processBuilder.command().toArray(new String[0]));
             if (this.output != null && this.error != null) {
-                Main.log("[FAILED] Execution of '"+command+"' failed '"+this.output+"' with:\n", this.error);
+                CryoLogger.ROOT_LOGGER.failedToExecuteCommand(command,this.error);
             } else if (this.output == null && this.error != null) {
-                Main.log("[FAILED] Execution of '"+command+"' failed with:\n",this.error);
+                CryoLogger.ROOT_LOGGER.failedToExecuteCommand(command,this.error);
             } else if (this.output != null && this.error == null) {
-                Main.log(Level.SEVERE, "[FAILED] Execution of [{0}] failed:\n{1} ",
-                        new Object[] { command, this.output });
+                CryoLogger.ROOT_LOGGER.failedToExecuteCommand(command,this.output);
             } else {
-                Main.log(Level.SEVERE, "[FAILED] Execution failed somehow.... {0}",
-                        String.join(" ", this.processBuilder.command().toArray(new String[0])));
+                CryoLogger.ROOT_LOGGER.failedToExecuteCommand(String.join(" ", this.processBuilder.command().toArray(new String[0])));
             }
         }
     }
@@ -96,15 +95,14 @@ public class OperationResult {
         if (this.outcome == Outcome.FAILURE) {
             final String command = String.join(" ", this.processBuilder.command().toArray(new String[0]));
             if (this.output != null && this.error != null) {
-                Main.log("[FAILED] "+custom+":'"+command+"' failed '"+this.output+"' with:\n", this.error);
+                CryoLogger.ROOT_LOGGER.failedToExecuteCustom(custom,command,this.output,this.error);
             } else if (this.output == null && this.error != null) {
-                Main.log("[FAILED] "+custom+":'"+command+"' failed with:\n",this.error);
+                CryoLogger.ROOT_LOGGER.failedToExecuteCustom(custom,command,this.error);
             } else if (this.output != null && this.error == null) {
-                Main.log(Level.SEVERE, "[FAILED]  {0}:[{1}] failed:\n{2} ",
-                        new Object[] { custom,command, this.output });
+                CryoLogger.ROOT_LOGGER.failedToExecuteCustom(custom,command, this.output);
             } else {
-                Main.log(Level.SEVERE, "[FAILED] {0}.Execution failed somehow.... {1}", new Object[] {custom,
-                        String.join(" ", this.processBuilder.command().toArray(new String[0]))});
+                CryoLogger.ROOT_LOGGER.failedToExecuteCustom(custom,
+                        String.join(" ", this.processBuilder.command().toArray(new String[0])));
             }
         }
     }
