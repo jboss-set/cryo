@@ -134,8 +134,8 @@ public class BisectablePullRequest {
             Main.log(Level.WARNING, "Pull Request[{0}] is already dependency of [{1}], can not add it as dependency of [{2}]. Marking both as corrupted!", new Object[] {
                     bisectablePullRequest.id,bisectablePullRequest.dependant.id, this.id
             });
+            //Marking the current PR as corrupted, will result in failure of current PR but, rest will execute anyways
             this.markCorrupted();
-            bisectablePullRequest.markCorrupted();
             return false;
         } else {
             if(bisectablePullRequest.getState() == CryoPRState.CORRUPTED) {
