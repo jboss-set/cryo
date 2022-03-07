@@ -160,15 +160,15 @@ public class Cryo {
                 try {
                     //INFO in case of git:// we have to switch to https kind
                     String tmpURL = result.getOutput();
+                    if(tmpURL.endsWith(".git")) {
+                        tmpURL = tmpURL.substring(0, tmpURL.indexOf(".git"));
+                    }
+
                     if(tmpURL.startsWith("git@")) {
                         final StringBuilder ulrStringBuilder = new StringBuilder();
                         ulrStringBuilder.append("https://");
                         ulrStringBuilder.append(tmpURL.substring(4,tmpURL.indexOf(":")));
-                        if(tmpURL.endsWith(".git")) {
-                            ulrStringBuilder.append("/").append(tmpURL.substring(tmpURL.indexOf(":")+1,tmpURL.indexOf(".git")));
-                        } else {
-                            ulrStringBuilder.append("/").append(tmpURL.substring(tmpURL.indexOf(":")+1,tmpURL.length()));
-                        }
+                        ulrStringBuilder.append("/").append(tmpURL.substring(tmpURL.indexOf(":")+1,tmpURL.length()));
                         tmpURL = ulrStringBuilder.toString();
                         Main.log(Level.INFO, "[SUCCESS] Transformed Repository URL: {0}", tmpURL);
                     }
