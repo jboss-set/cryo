@@ -125,8 +125,9 @@ public class Cryo {
             }
             this.operationCenter = this.operationCenter.initializeOperationCenter(new Object[] {this.repositoryLocation});
         } else {
-            Main.log(Level.SEVERE, "Failed to create OperationCenter...");
+            CryoLogger.ROOT_LOGGER.failedToCreateOperationCenter();
             return false;
+
         }
         if (!determineRepositoryURL()) {
             return false;
@@ -156,7 +157,7 @@ public class Cryo {
         final OperationResult result = this.operationCenter.determineRepositoryURL();
         switch (result.getOutcome()) {
             case SUCCESS:
-                Main.log(Level.INFO, "[SUCCESS] Repository URL: {0}", result.getOutput());
+                CryoLogger.ROOT_LOGGER.logRepositoryURL(result.getOutput());
                 try {
                     //INFO in case of git:// we have to switch to https kind
                     String tmpURL = result.getOutput();
@@ -170,11 +171,11 @@ public class Cryo {
                         ulrStringBuilder.append(tmpURL.substring(4,tmpURL.indexOf(":")));
                         ulrStringBuilder.append("/").append(tmpURL.substring(tmpURL.indexOf(":")+1,tmpURL.length()));
                         tmpURL = ulrStringBuilder.toString();
-                        Main.log(Level.INFO, "[SUCCESS] Transformed Repository URL: {0}", tmpURL);
+                        CryoLogger.ROOT_LOGGER.logTransformedRepositoryURL(tmpURL);
                     }
                     this.repositoryURL = new URL(tmpURL);
                 } catch (MalformedURLException e) {
-                    Main.log(Level.SEVERE, "Failed to parse repository URL!", e);
+                    CryoLogger.ROOT_LOGGER.failedToParseRepositoryURL();
                     return false;
                 }
                 return true;
@@ -190,7 +191,7 @@ public class Cryo {
         final OperationResult result = this.operationCenter.determineCurrentBranch();
         switch (result.getOutcome()) {
             case SUCCESS:
-                Main.log(Level.INFO, "[SUCCESS] Repository branch: {0}", result.getOutput());
+                CryoLogger.ROOT_LOGGER.logRepositoryBranch(result.getOutput());
                 this.branch = result.getOutput();
                 if(this.branch.endsWith(this.suffix)) {
                     this.remoteCodeBase = this.branch.substring(0,this.branch.indexOf(this.suffix));
@@ -212,11 +213,11 @@ public class Cryo {
      */
     protected boolean cleanUpRepository() {
         // Just in case.
-        Main.log(Level.INFO, "Cleaning up repository.");
+        CryoLogger.ROOT_LOGGER.cleaningRepository();
         final OperationResult result = this.operationCenter.cleanUpRepository(System.out, this.mavenArgs);
         switch (result.getOutcome()) {
             case SUCCESS:
-                Main.log(Level.INFO, "Cleanup of repository:\n{0}", result.getOutput());
+                    CryoLogger.ROOT_LOGGER.cleaningRepository(result.getOutput());
                 return true;
             case FAILURE:
             default:
@@ -229,7 +230,7 @@ public class Cryo {
         final OperationResult result = this.operationCenter.buildAndRunTestsuite(System.out, this.mavenArgs);
         switch (result.getOutcome()) {
             case SUCCESS:
-                Main.log(Level.INFO, "[SUCCESS] Build and test: {0}", result.getOutput());
+                CryoLogger.ROOT_LOGGER.logBuildAndTest(result.getOutput());
                 return true;
             case FAILURE:
             default:
@@ -252,7 +253,7 @@ public class Cryo {
             simpleContainer.register(PullRequestHome.class.getSimpleName(), GithubPullRequestHomeService);
             return true;
         } catch (AphroditeException e) {
-            Main.log("Failed to initialize aphrodite!", e);
+            CryoLogger.ROOT_LOGGER.failedToInitializeAphrodite(e);
             throw new RuntimeException("Failed to initialize aphrodite!", e);
         }
     }
@@ -273,22 +274,21 @@ public class Cryo {
 
             final LinkedHashMap<URL,BisectablePullRequest> inintialPullRequestPool = new LinkedHashMap<URL, BisectablePullRequest>(allPullRequests.size());
 
-            Main.log(Level.INFO, "Fetching PR list, desired codebase[{0}]", new Object[] {this.remoteCodeBase});
+            CryoLogger.ROOT_LOGGER.logFetchingPRList( new String[]{this.remoteCodeBase});
             for (PullRequest pullRequest : allPullRequests) {
                 try {
                     if(pullRequest == null || pullRequest.getCodebase() ==null || pullRequest.getCodebase().getName() ==null) {
-                        Main.log(Level.SEVERE, "Bad PullRequest, skipping: {0}", new Object[] { pullRequest });
+                            CryoLogger.ROOT_LOGGER.logFirstBad(new Object[] { pullRequest });
                         continue;
                     }
                     if (pullRequest.getCodebase().getName().equalsIgnoreCase(this.remoteCodeBase)) {
                         final BisectablePullRequest req = new BisectablePullRequest(this.operationCenter, pullRequest);
-                        // Main.log(Level.CONFIG, "Retaining Pull Request: {0}", new Object[] {req});
-                        Main.log(Level.INFO, "Retaining Pull Request: {0}", new Object[] { req });
+                        CryoLogger.ROOT_LOGGER.logRetainingPRList(new Object[] { req });
                         inintialPullRequestPool.put(pullRequest.getURL(), req);
+
                     } else {
                         final BisectablePullRequest req = new BisectablePullRequest(this.operationCenter, pullRequest);
-                        // Main.log(Level.CONFIG, "Purging Pull Request: {0}", new Object[] {req});
-                        Main.log(Level.INFO, "Purging Pull Request: {0}", new Object[] { req });
+                        CryoLogger.ROOT_LOGGER.logPurgingPRList(new Object[] { req });
                     }
                 } catch (Exception e) {
                     // TODO improve this.
@@ -320,8 +320,7 @@ public class Cryo {
                         final BisectablePullRequest missing = new BisectablePullRequest(tmpIdURL);
                         missing.markIneligible();
                         pullRequestList.put(tmpIdURL, missing);
-                        Main.log(Level.WARNING, "Failed to find PR[{0}] in list of available pull requests",
-                                new Object[] { idString });
+                        CryoLogger.ROOT_LOGGER.failedToFindPR( new String[] { idString });
                     }
                 }
             } else {
@@ -340,16 +339,15 @@ public class Cryo {
                 //INFO: else we have deps and lets try to collect them from #pullRequestList
                 final List<URL> deps = currentToScrutiny.getPullRequest().findDependencyPullRequestsURL();
 
-                Main.log(Level.INFO, "Searching for dependencies for PR[{0}], list:\n{1}", new Object[] {u,deps.stream()
+                CryoLogger.ROOT_LOGGER.logSearchingForDependencies(new Object[] {u,deps.stream()
                         .map(str->str.toString())
                         .collect(Collectors.joining("\n"))});
-
                 for(URL dependencyURL:deps) {
                     if(pullRequestList.containsKey(dependencyURL)) {
                         currentToScrutiny.addDependency(pullRequestList.get(dependencyURL));
                     } else {
                         //TODO: add "NON_EXISTING" or set "INELIGIBLE" BisectablePullRequest and add dep for log transparency
-                        Main.log(Level.WARNING, "Failed to find dependency for PR[{0}], dependency[{1}]", new Object[] {u,dependencyURL});
+                        CryoLogger.ROOT_LOGGER.failedToFindDependecy(u,dependencyURL);
                         final BisectablePullRequest missing = new BisectablePullRequest(dependencyURL);
                         currentToScrutiny.markCorrupted();
                         currentToScrutiny.addDependency(missing);
@@ -375,7 +373,7 @@ public class Cryo {
             ostracizeColdStorage();
             return true;
         } catch (NotFoundException | MalformedURLException e) {
-            Main.log(Level.SEVERE, "Failed to fetch repository '" + this.repositoryURL + "' due to:", e);
+            CryoLogger.ROOT_LOGGER.failedToFectchRepository(this.repositoryURL,e);
         }
         return false;
     }
@@ -413,9 +411,9 @@ public class Cryo {
         }
         if(!bisectablePullRequest.hasAllAcks()) {
             bisectablePullRequest.markIneligible();
-            Main.log(Level.WARNING, "[{0}], does not meet requireents for merge", new Object[] {bisectablePullRequest.getPullRequest()});
+            CryoLogger.ROOT_LOGGER.failedToMeetRequirementsForMerge(new Object[] {bisectablePullRequest.getPullRequest()});
         } else {
-            Main.log(Level.FINE, "[{0}], met requireents for merge", new Object[] {bisectablePullRequest.getPullRequest()});
+            CryoLogger.ROOT_LOGGER.logPRMeetsRequirements(new Object[] {bisectablePullRequest.getPullRequest()});
         }
         for(BisectablePullRequest dependency: bisectablePullRequest.getDependencies())
         {
@@ -425,8 +423,9 @@ public class Cryo {
 
     protected void createStorage() {
         if (!init()) {
-            Main.log(Level.WARNING, "Failed to initialize, check previous errors.");
+            CryoLogger.ROOT_LOGGER.failedToInitialize();
             return;
+
         }
         if (!setUpFutureBranch()) {
             return;
@@ -461,15 +460,14 @@ public class Cryo {
     protected boolean setUpFutureBranch() {
         if (this.branch.endsWith(this.suffix)) {
             this.futureBranch = this.branch;
-            Main.log(Level.WARNING,
-                    "[WARNING] Current branch [{0}] already has proposed suffix [{1}]. Either CRYO already ran or configuration is off a bit.", new Object[] {this.branch, this.suffix});
+            CryoLogger.ROOT_LOGGER.proposedSuffixAlreadyPresent(this.branch, this.suffix);
             return true;
         } else {
             this.futureBranch = this.branch + this.suffix;
             final OperationResult result = this.operationCenter.createNewBranch(this.futureBranch);
             switch (result.getOutcome()) {
                 case SUCCESS:
-                    Main.log(Level.INFO, "[SUCCESS] Created branch: {0}", this.futureBranch);
+                    CryoLogger.ROOT_LOGGER.logCreatedBranch(this.futureBranch);
                     break;
                 case FAILURE:
                 default:
@@ -540,8 +538,8 @@ public class Cryo {
         // retain only good PRs, rest will follow in another batch of merge.
         // NOTE: check if this is correct
         //TODO: do we need to check on this reverse?
-        Main.log(Level.INFO, "[BISECT] found first bad[{0}]", new Object[] {firstBad});
-        Main.log(Level.INFO, "[BISECT] found first bad[{0}]", new Object[] {danceFloor[firstBad]});
+        CryoLogger.ROOT_LOGGER.failedToReverseFirstBad(firstBad);
+        CryoLogger.ROOT_LOGGER.failedToReverseFirstBad(danceFloor[firstBad]);
         //INFO: PRISITINE, it might have been rewind in last adjust
         if(danceFloor[firstBad].getState() !=CryoPRState.PRISTINE && !danceFloor[firstBad].reverse()) {
             //NOTE: this should not happen unless there is something serious going on, blow up now.
@@ -593,27 +591,26 @@ public class Cryo {
     }
 
     protected void pushFutureBranch() {
-        Main.log(Level.INFO, "[SUCCESS] Finished preparing future branch {0}, report:", this.futureBranch);
+        CryoLogger.ROOT_LOGGER.logPreparingFutureBranch(futureBranch);
         //TODO: update when deps are in.
         reportCurrentStateOfColdStorage();
         if(this.dryRun) {
-            Main.log(Level.INFO, "[SUCCESS] Dry run complete, remote repository remain unchanged. Local repository can be pushed manually!");
+            CryoLogger.ROOT_LOGGER.logDryRunComplete();
             return;
         }
         if (getGoodPullRequestCount() != 0) {
             final OperationResult result = this.operationCenter.pushCurrentBranch(this.futureBranch);
             switch (result.getOutcome()) {
                 case SUCCESS:
-                    //Main.log(Level.FINE, "[BISECT] [SUCCESS] Push future branch: {0}", result.getOutput());
-                    Main.log(Level.INFO, "[BISECT] [SUCCESS] Push future branch: {0}", result.getOutput());
+                    CryoLogger.ROOT_LOGGER.logPushFutureBranchSuccessful(result.getOutput());
                     break;
                 case FAILURE:
                 default:
-                    Main.log(Level.INFO, "[BISECT] [FAILURE] Push future branch");
+                    CryoLogger.ROOT_LOGGER.logPushFutureBranchFailed();
                     result.reportError();
             }
         } else {
-            Main.log(Level.INFO, "[BISECT] [SEMI-SUCCESS] Run complete, but there is nothing to merge.... what a waste of time!");
+            CryoLogger.ROOT_LOGGER.logPushFutureBranchSemiSuccessful();
         }
     }
 
@@ -631,7 +628,6 @@ public class Cryo {
                 stringBuilder.append("\n");
             }
         }
-        Main.log(level, stringBuilder.toString());
     }
 
     protected long getGoodPullRequestCount() {

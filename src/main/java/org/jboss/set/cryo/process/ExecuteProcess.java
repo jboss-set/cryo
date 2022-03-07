@@ -30,6 +30,7 @@ import java.util.logging.Level;
 import java.util.stream.Collectors;
 
 import org.apache.commons.io.IOUtils;
+import org.jboss.set.cryo.CryoLogger;
 import org.jboss.set.cryo.Main;
 import org.jboss.set.cryo.staging.OperationResult;
 
@@ -66,7 +67,8 @@ public class ExecuteProcess {
                         final BufferedReader inputStream = new BufferedReader(new InputStreamReader(process.getInputStream()));
                         String line;
                         while ((line = inputStream.readLine()) != null) {
-                            Main.log(Level.INFO, line);
+//                            Main.log(Level.INFO, line);
+                            CryoLogger.ROOT_LOGGER.logMessage(line);
                         }
                     }
                 }

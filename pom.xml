@@ -30,6 +30,10 @@
         <version.net.sourceforge.argparse4j>0.7.0</version.net.sourceforge.argparse4j>
         <version.mockito>1.9.5</version.mockito>
         <version.testng>6.8.7</version.testng>
+
+        <version.org.jboss.logging.processor>2.2.1.Final</version.org.jboss.logging.processor>
+        <version.org.jboss.logmanager>2.1.14.Final</version.org.jboss.logmanager>
+        <version.org.jboss.logging>3.4.1.Final</version.org.jboss.logging>
     </properties>
 
     <!--
@@ -97,6 +101,23 @@
             <artifactId>mockito-core</artifactId>
             <version>${version.mockito}</version>
             <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.jboss.logging</groupId>
+            <artifactId>jboss-logging</artifactId>
+            <version>${version.org.jboss.logging}</version>
+        </dependency>
+
+        <dependency>
+            <groupId>org.jboss.logging</groupId>
+            <artifactId>jboss-logging-processor</artifactId>
+            <version>${version.org.jboss.logging.processor}</version>
+        </dependency>
+
+        <dependency>
+            <groupId>org.jboss.logmanager</groupId>
+            <artifactId>jboss-logmanager</artifactId>
+            <version>${version.org.jboss.logmanager}</version>
         </dependency>
     </dependencies>
 

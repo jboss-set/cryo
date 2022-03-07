@@ -31,6 +31,7 @@ import javax.naming.NameNotFoundException;
 
 import org.jboss.set.aphrodite.domain.Label;
 import org.jboss.set.aphrodite.domain.PullRequest;
+import org.jboss.set.cryo.CryoLogger;
 import org.jboss.set.cryo.Main;
 import org.jboss.set.cryo.staging.OperationCenter;
 import org.jboss.set.cryo.staging.OperationResult;
@@ -113,7 +114,7 @@ public class BisectablePullRequest {
                     }
                 }
             } catch (NameNotFoundException e) {
-                Main.log(Level.WARNING, "Can not fetch label list for: {0}", this.pullRequest.getURL());
+                CryoLogger.ROOT_LOGGER.failedToFetchLableList(this.pullRequest.getURL());
             }
             return false;
         }
@@ -131,9 +132,8 @@ public class BisectablePullRequest {
         if(bisectablePullRequest.dependant != null && !bisectablePullRequest.dependant.equals(this)) {
             //TODO: this should also never be non null?
             //TODO: if more than one PR is permitted to depend on another one, this has to be changed
-            Main.log(Level.WARNING, "Pull Request[{0}] is already dependency of [{1}], can not add it as dependency of [{2}]. Marking both as corrupted!", new Object[] {
-                    bisectablePullRequest.id,bisectablePullRequest.dependant.id, this.id
-            });
+
+            CryoLogger.ROOT_LOGGER.logPRIsAlreadyADependency( bisectablePullRequest.id,bisectablePullRequest.dependant.id, this.id);
             this.markCorrupted();
             bisectablePullRequest.markCorrupted();
             return false;
@@ -169,7 +169,7 @@ public class BisectablePullRequest {
                     //TODO: CHECK FOR BUG we merge left to right, than go up and merge - meaning root merge commit contains ALL DEPS
                     //if we unmerge leafs and than issue unmerge on root, we end up unmerging root and keep leafs.
                     //INFO: this handles NO_MERGE for deps
-                    Main.log(Level.WARNING, "Failed to merge dependency of PR[{0}], failed dependency[{1}]", new Object[] {this.getPullRequest().getURL(),dependency.getPullRequest().getURL()});
+                        CryoLogger.ROOT_LOGGER.failedToMergeDependency(this.getPullRequest().getURL(),dependency.getPullRequest().getURL());
                     //reverse previous if we are root, NO_MERGE
                     for(int revIndex = index-1;revIndex>=0;revIndex--) {
                         dependency = this.dependencies.get(revIndex);
@@ -188,7 +188,7 @@ public class BisectablePullRequest {
         final OperationResult result = this.operationCenter.mergePullRequest(this.getId());
         switch (result.getOutcome()) {
             case SUCCESS:
-                Main.log(Level.INFO, "[SUCCESS] Merge of: {0}", getId());
+                CryoLogger.ROOT_LOGGER.logSuccessfulMerge(getId());
                 this.state = CryoPRState.MERGED;
                 final OperationResult read = this.readMergeCommitHash();
                 switch(read.getOutcome()) {
@@ -223,7 +223,7 @@ public class BisectablePullRequest {
             final OperationResult result = this.operationCenter.abortMerge();
             switch (result.getOutcome()) {
                 case SUCCESS:
-                    Main.log(Level.INFO, "[SUCCESS] Revert pull request after failure: {0}", getId());
+                    CryoLogger.ROOT_LOGGER.logSuccessfulRevertAfterFailure(getId());
                     //INFO: just in case
                     //this._markNoMerge(true);
                     return true;
@@ -238,8 +238,8 @@ public class BisectablePullRequest {
             final OperationResult result = this.operationCenter.revertToPreviousCommit(mergeCommitID);
             switch (result.getOutcome()) {
                 case SUCCESS:
-                    Main.log(Level.INFO, "[SUCCESS] Revert pull request: {0} to previous {1}, {2}",
-                            new Object[] { getId(), mergeCommitID, result.getOutput() });
+
+                    CryoLogger.ROOT_LOGGER.logRevertPullRequest(getId(), mergeCommitID, result.getOutput() );
                     mergeCommitID = null;
                     this.state = CryoPRState.PRISTINE;
                     for (int revIndex = this.dependencies.size() - 1; revIndex >= 0; revIndex--) {
