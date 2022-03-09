@@ -22,11 +22,7 @@
  */
 package org.jboss.set.cryo.staging;
 
-import java.util.logging.Level;
-
-import org.jboss.set.cryo.Cryo;
 import org.jboss.set.cryo.CryoLogger;
-import org.jboss.set.cryo.Main;
 
 public class OperationResult {
 

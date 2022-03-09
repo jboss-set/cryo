@@ -20,22 +20,20 @@
  * 02110-1301 USA, or see the FSF site: http://www.fsf.org.
  */
 package org.jboss.set.cryo;
+
+import static org.jboss.logging.Logger.Level.ERROR;
+import static org.jboss.logging.Logger.Level.FATAL;
+import static org.jboss.logging.Logger.Level.INFO;
+import static org.jboss.logging.Logger.Level.WARN;
+
+import java.net.URL;
+
 import org.jboss.logging.BasicLogger;
 import org.jboss.logging.Logger;
-import org.jboss.logging.annotations.Cause;
 import org.jboss.logging.annotations.LogMessage;
 import org.jboss.logging.annotations.Message;
 import org.jboss.logging.annotations.MessageLogger;
 import org.jboss.set.aphrodite.spi.AphroditeException;
-import org.jboss.set.aphrodite.spi.NotFoundException;
-
-import java.io.IOException;
-import java.net.MalformedURLException;
-import java.net.SocketAddress;
-import java.net.URL;
-import java.nio.file.Path;
-
-import static org.jboss.logging.Logger.Level.*;
 
 @MessageLogger(projectCode = "UT")
 public interface CryoLogger extends BasicLogger {
@@ -119,11 +117,11 @@ public interface CryoLogger extends BasicLogger {
 
     @LogMessage(level = WARN)
     @Message(id = 5019, value = "[%s], does not meet requirments for merge")
-    void failedToMeetRequirementsForMerge(Object pullRequests[]);
+    void failedToMeetRequirementsForMerge(Object[] pullRequests);
 
     @LogMessage(level = INFO)
     @Message(id = 5020, value = "[%s], does meet requirments for merge")
-    void logPRMeetsRequirements(Object pullRequests[]);
+    void logPRMeetsRequirements(Object[] pullRequests);
 
     @LogMessage(level = ERROR)
     @Message(id = 5021, value = "Failed to initialize, check previous errors.")
@@ -143,7 +141,7 @@ public interface CryoLogger extends BasicLogger {
 
     @LogMessage(level = INFO)
     @Message(id = 5025, value = "[BISECT] found first bad[%s]")
-    void logFirstBad(Object fristBad[]);
+    void logFirstBad(Object[] fristBad);
 
     @LogMessage(level = INFO)
     @Message(id = 5027, value = "[SUCCESS] Finished preparing future branch {%s}, report:")
