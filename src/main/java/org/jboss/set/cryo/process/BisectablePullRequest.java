@@ -25,14 +25,12 @@ import java.net.URL;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
-import java.util.logging.Level;
 
 import javax.naming.NameNotFoundException;
 
 import org.jboss.set.aphrodite.domain.Label;
 import org.jboss.set.aphrodite.domain.PullRequest;
 import org.jboss.set.cryo.CryoLogger;
-import org.jboss.set.cryo.Main;
 import org.jboss.set.cryo.staging.OperationCenter;
 import org.jboss.set.cryo.staging.OperationResult;
 
