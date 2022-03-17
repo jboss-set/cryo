@@ -109,25 +109,8 @@ public class Cryo {
      *
      */
     protected boolean init() {
-        ServiceLoader<OperationCenter> opsCore = ServiceLoader.load(OperationCenter.class);
-        final Iterator<OperationCenter> it = opsCore.iterator();
-        if(it.hasNext()) {
-            while (it.hasNext()) {
-                if (this.operationCenter == null) {
-                    this.operationCenter = it.next();
-                } else {
-                    final OperationCenter tmpOps = it.next();
-                    if(tmpOps.getClass().getName().endsWith(this.opsCoreHint)) {
-                        this.operationCenter = tmpOps;
-                        break;
-                    }
-                }
-            }
-            this.operationCenter = this.operationCenter.initializeOperationCenter(new Object[] {this.repositoryLocation});
-        } else {
-            CryoLogger.ROOT_LOGGER.failedToCreateOperationCenter();
+        if (!createOperationCenter()) {
             return false;
-
         }
         if (!determineRepositoryURL()) {
             return false;
@@ -149,6 +132,29 @@ public class Cryo {
             return false;
         } else {
             reportCurrentStateOfColdStorage();
+        }
+        return true;
+    }
+
+    protected boolean createOperationCenter() {
+        ServiceLoader<OperationCenter> opsCore = ServiceLoader.load(OperationCenter.class);
+        final Iterator<OperationCenter> it = opsCore.iterator();
+        if (it.hasNext()) {
+            while (it.hasNext()) {
+                if (this.operationCenter == null) {
+                    this.operationCenter = it.next();
+                } else {
+                    final OperationCenter tmpOps = it.next();
+                    if (tmpOps.getClass().getName().endsWith(this.opsCoreHint)) {
+                        this.operationCenter = tmpOps;
+                        break;
+                    }
+                }
+            }
+            this.operationCenter = this.operationCenter.initializeOperationCenter(new Object[] { this.repositoryLocation });
+        } else {
+            CryoLogger.ROOT_LOGGER.failedToCreateOperationCenter();
+            return false;
         }
         return true;
     }
