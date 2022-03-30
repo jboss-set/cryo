@@ -449,6 +449,8 @@ public class Cryo {
 
             }
         }
+        informPRState();
+
         pushFutureBranch();
     }
 
@@ -635,5 +637,11 @@ public class Cryo {
         return this.coldStorage.stream().filter(pr -> {
             return pr.getState() == CryoPRState.GOOD;
         }).count();
+    }
+
+    protected void informPRState() {
+        for (BisectablePullRequest bpr : coldStorage) {
+            CryoLogger.ROOT_LOGGER.logMessage((bpr.hasDependencies() ? "\n" : "") + bpr);
+        }
     }
 }
