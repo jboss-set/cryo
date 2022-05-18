@@ -52,6 +52,7 @@ public class Main {
     private static final String[] ARG_FAST = new String[] {"-q","--quick-log"};
     private static final String[] ARG_CHECK_STATE = new String[] {"-c","--check-pr-state"};
     private static final String[] ARG_MVN_ARGS = new String[] {"-m","--maven-args"};
+    private static final String[] ARG_LOGS_BRIEF = new String[] { "-l", "--logs-brief" };
     private static String CONVERT_TO_ARG_ID(final String id) {
         return id.replaceFirst("--", "").replaceAll("-", "_");
     }
@@ -86,7 +87,8 @@ public class Main {
         parser.addArgument(ARG_FAST).action(Arguments.storeTrue()).required(false).setDefault(false).help("Disable time stamp overlay and buffering for build output.");
         parser.addArgument(ARG_CHECK_STATE).action(Arguments.storeTrue()).required(false).setDefault(false).help("Check state of pull request(Has all acks). By default CRYO will accept all PRs for branch.");
         parser.addArgument(ARG_MVN_ARGS).nargs(1).required(false).help("Set any maven command line params required to run. Each entry should be comma separated.");
-
+        parser.addArgument(ARG_LOGS_BRIEF).action(Arguments.storeTrue()).required(false).setDefault(false)
+                .help("See summarised logs.");
         try {
             Namespace ns = parser.parseArgs(args);
             final File directory = new File(normalizeParamters(ns.getString(CONVERT_TO_ARG_ID(ARG_REPOSITORY[1]))));
@@ -114,6 +116,9 @@ public class Main {
             String[] mavenArgs = null;
             if(mavenArgsTMP!= null && !mavenArgsTMP.equals("")) {
                 mavenArgs = mavenArgsTMP.split(",");
+            }
+            if (ns.getBoolean(CONVERT_TO_ARG_ID(ARG_LOGS_BRIEF[1]))) {
+                System.setProperty("java.util.logging.SimpleFormatter.format","%4$s: %5$s [%1$tc]%n");
             }
             //BAD...
             Main.fastLogging = fast;
