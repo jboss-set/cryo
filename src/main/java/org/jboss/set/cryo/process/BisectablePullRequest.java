@@ -49,7 +49,7 @@ public class BisectablePullRequest {
     //hold merge id in order to unmerge if needs be.
     protected String mergeCommitID;
     protected final OperationCenter operationCenter;
-
+    protected boolean failed=false;
     //dependency stuff
     protected BisectablePullRequest dependant;
     protected List<BisectablePullRequest> dependencies = new ArrayList<>();
@@ -196,6 +196,7 @@ public class BisectablePullRequest {
                     case FAILURE:
                     default:
                         read.reportError();
+                        failed=true;
                         throw new RuntimeException("[CRYO] Failed to read merge info after merging PR["+this.getPullRequest().getURL()+"], repository is in corrupted state. Exploding!");
                 }
                 return true;
@@ -203,6 +204,7 @@ public class BisectablePullRequest {
             default:
                 //INFO: mark only this one for abort, rest will do regular. After reverse markNoMerge for whole tree
                 this.state = CryoPRState.NO_MERGE;
+                failed=true;
                 result.reportError();
                 if(!reverse()) {
                     //TODO: make it better
@@ -228,6 +230,7 @@ public class BisectablePullRequest {
                 case FAILURE:
                 default:
                     // NOTE: is this even possible?
+                    failed=true;
                     result.reportError("Revert pull request after failure: "+getId());
                     return false;
             }
@@ -256,6 +259,7 @@ public class BisectablePullRequest {
                     // TODO: add another state?
                     mergeCommitID = null;
                     this.state = CryoPRState.CORRUPTED;
+                    failed=true;
                     result.reportError("Revert pull request: "+getId());
                     return false;
             }
@@ -364,8 +368,10 @@ public class BisectablePullRequest {
     protected void _toString(StringBuilder buffer, String prefix, String childPrefix) {
         buffer.append(prefix);
         if(pullRequest != null) {
-            //buffer.append("BisectablePullRequest ["+ pullRequest.getURL() + ", title='"+this.pullRequest.getTitle()+"'"+", state=" + state + "]");
-            buffer.append("["+ pullRequest.getURL() + ", title='"+this.pullRequest.getTitle()+"'"+", state=" + state + "]");
+            // buffer.append("BisectablePullRequest ["+ pullRequest.getURL() + ", title='"+this.pullRequest.getTitle()+"'"+",
+            // state=" + state + "]");
+            buffer.append("[" + pullRequest.getURL() + ", title='" + this.pullRequest.getTitle() + "'" + ", state=" + state
+                    + "]" + (failed ? " *" : ""));
         } else {
             //buffer.append("BisectablePullRequest ["+ id + ", title='NA'"+", state=" + state + "]");
             buffer.append("["+ id + ", title='NA'"+", state=" + state + "]");
