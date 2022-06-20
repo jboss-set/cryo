@@ -22,10 +22,12 @@
 package org.jboss.set.cryo.process;
 
 import java.io.BufferedReader;
+import java.io.FileWriter;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.PrintStream;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 import org.apache.commons.io.IOUtils;
@@ -35,8 +37,11 @@ import org.jboss.set.cryo.staging.OperationResult;
 
 public class ExecuteProcess {
 
+    private static final Pattern PROGRESS_DOWNLOAD_MATCH = Pattern.compile("\\s*\\b(?:Progress|Download| kB )\\b\\s*",
+            Pattern.CASE_INSENSITIVE);
     protected final ProcessBuilder processBuilder;
     protected final PrintStream out;
+
     public ExecuteProcess(PrintStream out, ProcessBuilder processBuilder) {
         super();
         this.processBuilder = processBuilder;
@@ -50,10 +55,12 @@ public class ExecuteProcess {
     }
     public OperationResult getProcessResult() {
         Process process = null;
+        FileWriter fWriter = null;
         try {
             process = processBuilder.start();
             String output = "<EMPTY>";
             int result;
+            fWriter = new FileWriter("cryo_logs.txt");
             if(out != null) {
                 //INFO: long running command, we dont care about output; Just dump it;
                 while (process.isAlive()) {
@@ -66,8 +73,11 @@ public class ExecuteProcess {
                         final BufferedReader inputStream = new BufferedReader(new InputStreamReader(process.getInputStream()));
                         String line;
                         while ((line = inputStream.readLine()) != null) {
-//                            Main.log(Level.INFO, line);
-                            CryoLogger.ROOT_LOGGER.logMessage(line);
+                            // Main.log(Level.INFO, line);
+                            if (!PROGRESS_DOWNLOAD_MATCH.matcher(line).find())
+                                CryoLogger.ROOT_LOGGER.logMessage(line);
+                            else
+                                fWriter.append(line+"\n");
                         }
                     }
                 }
@@ -85,6 +95,13 @@ public class ExecuteProcess {
                 return new OperationResult(processBuilder, OperationResult.Outcome.FAILURE, output,e);
             } else {
                 return new OperationResult(processBuilder, OperationResult.Outcome.FAILURE, null, e);
+            }
+        } finally {
+            try {
+                if (fWriter != null)
+                    fWriter.close();
+            } catch (Exception e) {
+                e.printStackTrace();
             }
         }
     }
