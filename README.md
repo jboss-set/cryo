@@ -9,9 +9,11 @@ Result should be branch that pass TS and possibly can be used as next release.
 
 #Configuration
 ------------
-##merge.sh
+##pr-merge
 ------------
-CRYO use external script to perform merge magic( in order to align with existing tooling). Script is locate at root of repository. At runtime this script has to be available through $PATH.
+CRYO use external script to perform merge magic( in order to align with existing tooling). The script can be downloaded from [here](https://github.com/jboss-set/auxilia/blob/master/pr-merge), the script's permission must be set to executable ,and its name must be **pr-merge**. 
+
+**At runtime this script has to be available through $PATH.**
 
 
 ##Authentication
@@ -20,11 +22,16 @@ User running script or CI machine has to be authenticated with github in order t
 
 ##Aphrodite
 ------------
-CRYO depends on aphrodie. Thus it requires valid configuration present. It has to be accessible as value of '-Daphrodite.config' proprety passed at runtime.
+CRYO depends on aphrodie. Thus it requires valid configuration present. It has to be accessible as value of `-Daphrodite.config` proprety passed at runtime.
 
 ##Logging
 ------------
-In order to make logging more transparent, it is encouraged to run CRYO with '-Djava.util.logging.SimpleFormatter.format='%4$s %5$s%6$s%n''.
+In order to make logging more transparent, it is encouraged to run CRYO with `-Djava.util.logging.SimpleFormatter.format='%4$s %5$s%6$s%n`.
+
+##Basic Setup
+------------
+- The PRs to be merged should be created on the same repository's branch that you are currently on.
+- export `NO_STOP_BEFORE_MERGE=x`, to stop CRYO if there's an error, otherwise it may run indefinitely.
 
 ##Command Line
 ------------
@@ -40,19 +47,25 @@ java -jar ..... -o HarmoniaOperationCenter
 ------------
 Flag to turn on dry run - CRYO wont push brach to remote end. User can do that after verifying.
 Default: false
-### -i
+### -f
 ------------
 Invert PRs in local storage. Github return newest PRs as first. Usually applying older ones is better solution.
 Default: false, no inversion.
+
+### -i
+------------
+Comma separated list of pull request URLs( as they appear in github UI) that should be included.
+
 ### -e
 ------------
-Comma separated list of pull request URLs( as they appear in github UI) that should not be part of process.
+Comma separated list of pull request URLs that should not be part of process.
 ### -s
 ------------
 Branch suffix that will be used to create new branch.
 Default: .future
-### -f
+### -q
 ------------
 Switch on fast logging. By default CRYO will process output to at least at timestamp. In cases it's not needed this flag can alter it, so parts of build
 that create big logs, CRYO wont interfere.
 Default: false
+
